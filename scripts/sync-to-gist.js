@@ -8,10 +8,12 @@
  */
 
 const fs = require('fs');
+const path = require('path');
 const https = require('https');
 
 const GIST_ID = process.argv[2] || 'c750c53b60430cd38cc5793c9efd0e7e';
-const TOKEN = process.env.GITHUB_TOKEN || '';
+const TOKEN = process.env.GITHUB_TOKEN || 
+              (fs.existsSync(path.join(__dirname, '..', '.token')) ? fs.readFileSync(path.join(__dirname, '..', '.token'), 'utf8').trim() : '');
 
 // Paths
 const VIRTUAL_TRADES_PATH = '/data/.openclaw/workspace/logs/virtual-trades.json';
@@ -33,9 +35,9 @@ function loadTrades() {
 function processTradesData(data) {
     const trades = data.trades || [];
     const stats = calculateStats(trades);
-    const activeTrades = trades.filter(t => t.status === 'open');
-    const closedTrades = trades.filter(t => t.status === 'closed');
-    const recentTrades = closedTrades.slice(-20).reverse();
+    const activeTrades = trades.filter(t => !t.outcome).map(t => formatTrade(t));
+    const closedTrades = trades.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
+    const recentTrades = closedTrades.slice(-20).reverse().map(t => formatTrade(t));
     const balanceHistory = calculateBalanceHistory(trades);
 
     return {
@@ -67,18 +69,18 @@ function processTradesData(data) {
 }
 
 function calculateStats(trades) {
-    const closed = trades.filter(t => t.status === 'closed');
+    const closed = trades.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
     if (closed.length === 0) {
         return { wins: 0, losses: 0, winRate: 0, totalPnL: 0, grossProfit: 0, grossLoss: 0, bestTrade: null, worstTrade: null, avgTrade: 0 };
     }
     
-    const wins = closed.filter(t => t.pnl > 0);
-    const losses = closed.filter(t => t.pnl <= 0);
+    const wins = closed.filter(t => parseFloat(t.pnlAmount) > 0);
+    const losses = closed.filter(t => parseFloat(t.pnlAmount) <= 0);
     const winRate = Math.round((wins.length / closed.length) * 100);
-    const totalPnL = closed.reduce((sum, t) => sum + t.pnl, 0);
-    const grossProfit = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + t.pnl, 0));
-    const sortedByPnL = [...closed].sort((a, b) => b.pnl - a.pnl);
+    const totalPnL = closed.reduce((sum, t) => sum + parseFloat(t.pnlAmount), 0);
+    const grossProfit = wins.reduce((sum, t) => sum + parseFloat(t.pnlAmount), 0);
+    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + parseFloat(t.pnlAmount), 0));
+    const sortedByPnL = [...closed].sort((a, b) => parseFloat(b.pnlAmount) - parseFloat(a.pnlAmount));
     
     return {
         wins: wins.length,
@@ -96,34 +98,48 @@ function calculateStats(trades) {
 function calculateBalanceHistory(trades) {
     const history = [{ time: 'Start', balance: 100 }];
     let runningBalance = 100;
-    const closed = trades.filter(t => t.status === 'closed');
+    const closed = trades.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
     closed.forEach(trade => {
-        runningBalance += trade.pnl;
-        history.push({ time: trade.exitTime || trade.time, balance: Math.round(runningBalance * 100) / 100 });
+        runningBalance += parseFloat(trade.pnlAmount);
+        history.push({ time: trade.timestamp, balance: Math.round(runningBalance * 100) / 100 });
     });
     history.push({ time: 'Now', balance: Math.round(runningBalance * 100) / 100 });
     return history;
 }
 
 function formatTrade(trade) {
+    // Handle open trades (no outcome yet)
+    if (!trade.outcome) {
+        return {
+            id: trade.timestamp,
+            pair: trade.pair,
+            direction: trade.type,
+            entryPrice: trade.entryPrice,
+            atr: trade.atr,
+            atrMultiplier: trade.atrMultiplier,
+            status: 'open',
+            outcome: null,
+            entryTime: trade.timestamp,
+            stopLoss: trade.stopPrice,
+            takeProfit: trade.tpPrice
+        };
+    }
+    
     return {
-        id: trade.id,
-        pair: trade.pair || 'BTCUSDT',
-        direction: trade.direction,
+        id: trade.id || trade.timestamp,
+        pair: trade.pair,
+        direction: trade.type,
         entryPrice: trade.entryPrice,
-        exitPrice: trade.exitPrice,
+        exitPrice: trade.tpPrice,
         atr: trade.atr,
-        pnl: Math.round(trade.pnl * 100) / 100,
-        pnlPercent: trade.pnlPercent,
-        status: trade.status,
-        entryTime: trade.entryTime,
-        exitTime: trade.exitTime,
-        currentPrice: trade.currentPrice,
-        unrealizedPnL: trade.unrealizedPnL,
-        progressToSL: trade.progressToSL,
-        progressToTP: trade.progressToTP,
-        stopLoss: trade.stopLoss,
-        takeProfit: trade.takeProfit
+        pnlAmount: parseFloat(trade.pnlAmount),
+        pnlPercent: parseFloat(trade.pnlPct),
+        status: trade.outcome ? 'closed' : 'open',
+        outcome: trade.outcome,
+        entryTime: trade.timestamp,
+        exitTime: trade.exitTime || trade.timestamp,
+        stopPrice: trade.stopPrice,
+        tpPrice: trade.tpPrice
     };
 }
 
