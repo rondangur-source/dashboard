@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bearded Trader - MSS Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --accent: #f7931a; /* Bitcoin orange */
+            --accent-secondary: #6c5ce7;
+            --accent-glow: rgba(247, 147, 26, 0.25);
+            --text-primary: #ffffff;
+            --text-secondary: #8b8b9e;
+            --success: #00d26a;
+            --danger: #ff4757;
+            --warning: #ffc107;
+            --border: rgba(255,255,255,0.08);
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 20% 30%, rgba(247, 147, 26, 0.06) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 70%, rgba(108, 92, 231, 0.05) 0%, transparent 50%);
+            z-index: -1;
+            animation: bgPulse 12s ease-in-out infinite;
+        }
+        
+        @keyframes bgPulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            z-index: 1000;
+        }
+        
+        .nav-logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-logo .logo-icon {
+            font-size: 1.6rem;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        .nav-links a:hover { color: var(--text-primary); background: var(--bg-card); }
+        .nav-links a.active { color: var(--text-primary); background: var(--accent); box-shadow: 0 0 25px var(--accent-glow); }
+        
+        /* Main Content */
+        main { padding: 100px 40px 40px; max-width: 1500px; margin: 0 auto; }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: rgba(0, 210, 106, 0.15);
+            border: 1px solid rgba(0, 210, 106, 0.3);
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .status-badge .dot {
+            width: 10px;
+            height: 10px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        /* Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px;
+            transition: all 0.3s;
+        }
+        
+        .card:hover { border-color: rgba(247, 147, 26, 0.2); }
+        
+        /* Balance Hero */
+        .balance-hero {
+            grid-column: span 12;
+            background: linear-gradient(135deg, rgba(247, 147, 26, 0.15), rgba(108, 92, 231, 0.1));
+            border: 1px solid rgba(247, 147, 26, 0.2);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 40px;
+            padding: 40px;
+        }
+        
+        .balance-item { text-align: center; }
+        .balance-item .label { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .balance-item .value { font-size: 2rem; font-weight: 700; }
+        .balance-item .value.accent { color: var(--accent); }
+        .balance-item .value.success { color: var(--success); }
+        .balance-item .value.danger { color: var(--danger); }
+        
+        /* Stats Row */
+        .stat-card { grid-column: span 3; }
+        .stat-card .icon {
+            width: 50px; height: 50px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; margin-bottom: 16px;
+        }
+        .stat-card .icon.orange { background: rgba(247, 147, 26, 0.2); }
+        .stat-card .icon.purple { background: rgba(108, 92, 231, 0.2); }
+        .stat-card .icon.green { background: rgba(0, 210, 106, 0.2); }
+        .stat-card .icon.red { background: rgba(255, 71, 87, 0.2); }
+        .stat-card .value { font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; }
+        .stat-card .label { color: var(--text-secondary); font-size: 0.9rem; }
+        
+        /* Active Trades Section */
+        .active-trades-section { grid-column: span 12; }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .section-header h2 { font-size: 1.4rem; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+        .live-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--success); }
+        .live-indicator .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        
+        .active-trade {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 120px 1fr 1fr 1fr 1fr 100px;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        
+        .active-trade:hover {
+            border-color: rgba(247, 147, 26, 0.3);
+            box-shadow: 0 0 30px rgba(247, 147, 26, 0.1);
+        }
+        
+        .trade-direction {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .trade-direction .dir-badge {
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        .trade-direction .dir-badge.long {
+            background: rgba(0, 210, 106, 0.2);
+            color: var(--success);
+            border: 1px solid rgba(0, 210, 106, 0.3);
+        }
+        
+        .trade-direction .dir-badge.short {
+            background: rgba(255, 71, 87, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+        
+        .trade-direction .pair { font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 4px; }
+        
+        .trade-info { display: flex; flex-direction: column; gap: 4px; }
+        .trade-info .label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .trade-info .value { font-size: 1.1rem; font-weight: 600; }
+        .trade-info .value.highlight { color: var(--accent); }
+        
+        .trade-pnl { text-align: center; }
+        .trade-pnl .pnl-value { font-size: 1.5rem; font-weight: 700; }
+        .trade-pnl .pnl-value.positive { color: var(--success); }
+        .trade-pnl .pnl-value.negative { color: var(--danger); }
+        .trade-pnl .pnl-percent { font-size: 0.85rem; margin-top: 4px; }
+        
+        .trade-progress { }
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .progress-bar .fill.profit { background: linear-gradient(90deg, var(--success), #00ff88); }
+        .progress-bar .fill.loss { background: linear-gradient(90deg, var(--danger), #ff6b7a); }
+        .progress-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
+        
+        .trade-actions { text-align: center; }
+        .trade-actions button {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .trade-actions button:hover { background: var(--accent); border-color: var(--accent); }
+        
+        /* Chart Section */
+        .chart-section { grid-column: span 8; }
+        .chart-section h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
+        
+        /* PnL Card */
+        .pnl-card { grid-column: span 4; }
+        .pnl-card h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
+        .pnl-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+        .pnl-item:last-child { border-bottom: none; }
+        .pnl-item .label { color: var(--text-secondary); }
+        .pnl-item .value { font-weight: 600; }
+        .pnl-item .value.positive { color: var(--success); }
+        .pnl-item .value.negative { color: var(--danger); }
+        
+        /* Recent Trades */
+        .recent-trades-section { grid-column: span 12; }
+        .recent-trades-section h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
+        
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .trades-table th {
+            text-align: left;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .trades-table td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .trades-table tr:hover { background: rgba(247, 147, 26, 0.05); }
+        
+        .dir-tag {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .dir-tag.long { background: rgba(0, 210, 106, 0.15); color: var(--success); }
+        .dir-tag.short { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        
+        .result-tag {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .result-tag.win { background: rgba(0, 210, 106, 0.15); color: var(--success); }
+        .result-tag.loss { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        
+        /* Footer */
+        footer { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 0.85rem; }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .balance-hero { grid-template-columns: repeat(2, 1fr); }
+            .stat-card { grid-column: span 6; }
+            .chart-section { grid-column: span 12; }
+            .pnl-card { grid-column: span 12; }
+            .active-trade { grid-template-columns: 1fr 1fr; }
+        }
+        
+        @media (max-width: 768px) {
+            nav { padding: 0 20px; }
+            main { padding: 90px 20px 20px; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+            .balance-hero { grid-template-columns: 1fr; gap: 20px; padding: 24px; }
+            .stat-card { grid-column: span 12; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-logo">
+            <span class="logo-icon">🧔</span>
+            Bearded Trader
+        </div>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="bearded-trader.html" class="active">Bearded Trader</a>
+            <a href="trades.html">Trades</a>
+        </div>
+    </nav>
+    
+    <main>
+        <div class="page-header">
+            <h1>
+                🧔 Bearded Trader
+                <span class="status-badge">
+                    <span class="dot"></span>
+                    ACTIVE
+                </span>
+            </h1>
+        </div>
+        
+        <!-- Balance Hero -->
+        <div class="card balance-hero">
+            <div class="balance-item">
+                <div class="label">Virtual Balance</div>
+                <div class="value accent">$100.00</div>
+            </div>
+            <div class="balance-item">
+                <div class="label">Total PnL</div>
+                <div class="value">$0.00</div>
+            </div>
+            <div class="balance-item">
+                <div class="label">Win Rate</div>
+                <div class="value">--%</div>
+            </div>
+            <div class="balance-item">
+                <div class="label">Active Trades</div>
+                <div class="value">0</div>
+            </div>
+        </div>
+        
+        <div class="dashboard-grid" style="margin-top: 24px;">
+            <!-- Stats -->
+            <div class="card stat-card">
+                <div class="icon orange">📊</div>
+                <div class="value">0</div>
+                <div class="label">Total Trades</div>
+            </div>
+            <div class="card stat-card">
+                <div class="icon green">✅</div>
+                <div class="value">0</div>
+                <div class="label">Wins</div>
+            </div>
+            <div class="card stat-card">
+                <div class="icon red">❌</div>
+                <div class="value">0</div>
+                <div class="label">Losses</div>
+            </div>
+            <div class="card stat-card">
+                <div class="icon purple">📈</div>
+                <div class="value">53%</div>
+                <div class="label">Expected WR</div>
+            </div>
+            
+            <!-- Active Trades Section -->
+            <div class="card active-trades-section">
+                <div class="section-header">
+                    <h2>⚡ Active Trades <span style="color: var(--text-secondary); font-weight: 400; font-size: 1rem;">— 0 running</span></h2>
+                    <div class="live-indicator">
+                        <span class="dot"></span>
+                        LIVE
+                    </div>
+                </div>
+                
+                <div id="activeTradesContainer">
+                    <!-- No active trades message -->
+                    <div style="text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+                        <div style="font-size: 3rem; margin-bottom: 16px;">🎯</div>
+                        <div style="font-size: 1.1rem; margin-bottom: 8px;">No Active Trades</div>
+                        <div style="font-size: 0.9rem;">Scanning BTCUSDT... Waiting for MSS signal</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chart -->
+            <div class="card chart-section">
+                <h2>📈 Balance History</h2>
+                <canvas id="balanceChart" height="250"></canvas>
+            </div>
+            
+            <!-- PnL Breakdown -->
+            <div class="card pnl-card">
+                <h2>💰 PnL Breakdown</h2>
+                <div class="pnl-item">
+                    <span class="label">Gross Profit</span>
+                    <span class="value positive">$0.00</span>
+                </div>
+                <div class="pnl-item">
+                    <span class="label">Gross Loss</span>
+                    <span class="value negative">$0.00</span>
+                </div>
+                <div class="pnl-item">
+                    <span class="label">Net PnL</span>
+                    <span class="value">$0.00</span>
+                </div>
+                <div class="pnl-item">
+                    <span class="label">Best Trade</span>
+                    <span class="value positive">--</span>
+                </div>
+                <div class="pnl-item">
+                    <span class="label">Worst Trade</span>
+                    <span class="value negative">--</span>
+                </div>
+                <div class="pnl-item">
+                    <span class="label">Avg Trade</span>
+                    <span class="value">--</span>
+                </div>
+            </div>
+            
+            <!-- Recent Trades Table -->
+            <div class="card recent-trades-section">
+                <h2>📋 Recent Trades</h2>
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Date/Time</th>
+                            <th>Pair</th>
+                            <th>Direction</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>PnL</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTradesBody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                No trades yet — Trader started today at 10:00 AM
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        🧔 Bearded Trader • MSS Strategy v6 • ATR Dynamic SL • 
+        <span style="color: var(--accent);">BTCUSDT</span> only • 
+        Scanning: Sun-Thu 10:00-00:00 Israel
+    </footer>
+    
+    <script>
+        // Balance Chart
+        const ctx = document.getElementById('balanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Start', 'Now'],
+                datasets: [{
+                    label: 'Balance',
+                    data: [100, 100],
+                    borderColor: '#f7931a',
+                    backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#f7931a',
+                    pointRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 95,
+                        max: 105,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#8b8b9e', callback: v => '$' + v }
+                    },
+                    x: { grid: { display: false }, ticks: { color: '#8b8b9e' } }
+                }
+            }
+        });
+        
+        // Live update simulation
+        function updateActiveTrades() {
+            // This would fetch from your logs/virtual-trades.json
+            // For demo, we show empty state
+        }
+        
+        // Poll every 10 seconds
+        setInterval(updateActiveTrades, 10000);
+        
+        // Format time helper
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' Israel';
+        }
+    </script>
+</body>
+</html>
