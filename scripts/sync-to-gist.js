@@ -55,8 +55,8 @@ function processTradesData(data) {
             worstTrade: stats.worstTrade,
             avgTrade: Math.round(stats.avgTrade * 100) / 100
         },
-        activeTrades: activeTrades.map(t => formatTrade(t)),
-        recentTrades: recentTrades.map(t => formatTrade(t)),
+        activeTrades: activeTrades,
+        recentTrades: recentTrades,
         balanceHistory: balanceHistory,
         tradingStatus: {
             isActive: isTradingHours(),

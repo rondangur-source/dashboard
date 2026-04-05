@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading - Bearded Team</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f; --bg2: #12121a; --card: #1a1a24;
+            --accent: #f7931a; --success: #00d26a; --danger: #ff4757;
+            --text: #fff; --text2: #8b8b9e; --border: rgba(255,255,255,0.08);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 60px;
+            background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 100;
+        }
+        .logo { font-weight: 700; font-size: 1.2rem; color: var(--accent); margin-right: 20px; white-space: nowrap; }
+        nav select {
+            background: var(--card); border: 1px solid var(--border); color: var(--text);
+            padding: 10px 16px; border-radius: 10px; font-size: 0.9rem; cursor: pointer; flex: 1; max-width: 300px;
+        }
+        nav select:focus { outline: none; border-color: var(--accent); }
+        
+        main { padding: 80px 20px 40px; max-width: 1000px; margin: 0 auto; }
+        
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; margin-bottom: 20px;
+        }
+        
+        .balance-hero {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 600px) { .balance-hero { grid-template-columns: repeat(4, 1fr); } }
+        
+        .stat-box {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; text-align: center;
+        }
+        .stat-box .value { font-size: 2rem; font-weight: 700; margin-bottom: 4px; }
+        .stat-box .value.green { color: var(--success); }
+        .stat-box .value.red { color: var(--danger); }
+        .stat-box .label { color: var(--text2); font-size: 0.8rem; text-transform: uppercase; }
+        
+        /* Progress Bar */
+        .progress-section { margin-bottom: 20px; }
+        .progress-header {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 0.9rem; color: var(--text2);
+        }
+        .progress-bar {
+            height: 12px; background: var(--bg2); border-radius: 6px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 6px;
+            background: linear-gradient(90deg, var(--success), #00ff88);
+            transition: width 0.5s ease;
+        }
+        .progress-fill.danger { background: linear-gradient(90deg, var(--danger), #ff6b7a); }
+        
+        /* Trade Card */
+        .trade-card {
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 14px; padding: 20px; margin-bottom: 12px;
+        }
+        .trade-header {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+        }
+        .trade-pair { font-size: 1.2rem; font-weight: 700; }
+        .trade-dir {
+            padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+        }
+        .trade-dir.long { background: rgba(0,210,106,0.2); color: var(--success); }
+        .trade-dir.short { background: rgba(255,71,87,0.2); color: var(--danger); }
+        
+        .trade-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        }
+        @media (max-width: 500px) { .trade-grid { grid-template-columns: 1fr; } }
+        
+        .trade-stat {
+            background: var(--card); border-radius: 10px; padding: 14px; text-align: center;
+        }
+        .trade-stat .label { font-size: 0.7rem; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
+        .trade-stat .value { font-size: 1.1rem; font-weight: 600; }
+        .trade-stat .value.green { color: var(--success); }
+        .trade-stat .value.red { color: var(--danger); }
+        
+        .no-trades {
+            text-align: center; padding: 60px 20px; color: var(--text2);
+        }
+        .no-trades .emoji { font-size: 3rem; margin-bottom: 12px; }
+        
+        footer { text-align: center; padding: 30px; color: var(--text2); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <nav>
+        <span class="logo">🧔 Bearded Team</span>
+        <select onchange="location.href=this.value">
+            <option value="index.html">📊 Home</option>
+            <option value="trading.html" selected>📈 Trading</option>
+            <option value="history.html">📋 History</option>
+            <option value="office.html">🏢 Live Office</option>
+            <option value="strategy.html">📚 Strategy</option>
+        </select>
+    </nav>
+    
+    <main>
+        <!-- Balance & Stats -->
+        <div class="balance-hero">
+            <div class="stat-box">
+                <div class="value" id="balance">$100.00</div>
+                <div class="label">Balance</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="dailyPnl">$0.00</div>
+                <div class="label">Daily P&L</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="wr">--%</div>
+                <div class="label">Win Rate</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="trades">0</div>
+                <div class="label">Trades</div>
+            </div>
+        </div>
+        
+        <!-- Progress to Target -->
+        <div class="card progress-section">
+            <div class="progress-header">
+                <span>🎯 Daily Profit Target</span>
+                <span id="progressText">$0 / $50</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <!-- Active Trades -->
+        <div class="card">
+            <h2 style="font-size: 1rem; color: var(--text2); margin-bottom: 16px; text-transform: uppercase;">⚡ Active Trades</h2>
+            <div id="activeTrades">
+                <div class="no-trades">
+                    <div class="emoji">🎯</div>
+                    <div>No active trades right now</div>
+                    <div style="font-size: 0.85rem; margin-top: 8px;">Scanner running — waiting for signals</div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        🧔 MSS Trader v6 • BTC, BNB, ETH • Sun-Thu 10:00-00:00 Israel
+    </footer>
+    
+    <script>
+        const GIST_URL = 'https://gist.githubusercontent.com/rondangur-source/c750c53b60430cd38cc5793c9efd0e7e/raw/dashboard-data.json?t=' + Date.now();
+        
+        async function load() {
+            try {
+                const res = await fetch(GIST_URL);
+                const data = await res.json();
+                updateUI(data);
+            } catch (e) { console.error(e); }
+        }
+        
+        function updateUI(data) {
+            const stats = data.stats || {};
+            const active = data.activeTrades || [];
+            
+            // Balance
+            document.getElementById('balance').textContent = '$' + (stats.balance || 100).toFixed(2);
+            
+            // Daily P&L (balance - 100)
+            const dailyPnl = (stats.balance || 100) - 100;
+            const pnlEl = document.getElementById('dailyPnl');
+            pnlEl.textContent = (dailyPnl >= 0 ? '+$' : '-$') + Math.abs(dailyPnl).toFixed(2);
+            pnlEl.className = 'value ' + (dailyPnl >= 0 ? 'green' : 'red');
+            
+            // Win Rate & Trades
+            document.getElementById('wr').textContent = (stats.winRate || 0) + '%';
+            document.getElementById('trades').textContent = stats.totalTrades || 0;
+            
+            // Progress Bar
+            const target = 50;
+            const progress = Math.min(Math.max(dailyPnl / target * 100, 0), 100);
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = '$' + Math.max(0, dailyPnl).toFixed(2) + ' / $' + target;
+            
+            if (dailyPnl < 0) {
+                document.getElementById('progressFill').classList.add('danger');
+            } else {
+                document.getElementById('progressFill').classList.remove('danger');
+            }
+            
+            // Active Trades
+            const container = document.getElementById('activeTrades');
+            if (active.length === 0) {
+                container.innerHTML = '<div class="no-trades"><div class="emoji">🎯</div><div>No active trades right now</div><div style="font-size: 0.85rem; margin-top: 8px;">Scanner running — waiting for signals</div></div>';
+            } else {
+                container.innerHTML = active.map(t => `
+                    <div class="trade-card">
+                        <div class="trade-header">
+                            <span class="trade-pair">${t.pair}</span>
+                            <span class="trade-dir ${(t.direction||'').toLowerCase()}">${t.direction || 'LONG'}</span>
+                        </div>
+                        <div class="trade-grid">
+                            <div class="trade-stat">
+                                <div class="label">Entry</div>
+                                <div class="value">$${t.entryPrice?.toFixed(2)}</div>
+                            </div>
+                            <div class="trade-stat">
+                                <div class="label">Stop Loss</div>
+                                <div class="value red">$${t.stopLoss?.toFixed(2)}</div>
+                            </div>
+                            <div class="trade-stat">
+                                <div class="label">Take Profit</div>
+                                <div class="value green">$${t.takeProfit?.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        load();
+        setInterval(load, 30000);
+    </script>
+</body>
+</html>

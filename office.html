@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Office - Bearded Team</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f; --bg2: #12121a; --card: #1a1a24;
+            --accent: #f7931a; --accent2: #6c5ce7; --success: #00d26a; --danger: #ff4757;
+            --text: #fff; --text2: #8b8b9e; --border: rgba(255,255,255,0.08);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 60px;
+            background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 100;
+        }
+        .logo { font-weight: 700; font-size: 1.2rem; color: var(--accent); margin-right: 20px; white-space: nowrap; }
+        nav select {
+            background: var(--card); border: 1px solid var(--border); color: var(--text);
+            padding: 10px 16px; border-radius: 10px; font-size: 0.9rem; cursor: pointer; flex: 1; max-width: 300px;
+        }
+        nav select:focus { outline: none; border-color: var(--accent); }
+        
+        main { padding: 80px 20px 40px; max-width: 1000px; margin: 0 auto; }
+        
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; margin-bottom: 20px;
+        }
+        
+        .office-scene {
+            background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%);
+            border-radius: 12px;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid var(--border);
+        }
+        
+        /* Floor */
+        .floor {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+            border-top: 2px solid #3a3a4a;
+        }
+        
+        /* Window */
+        .window {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(180deg, #4a6fa5 0%, #6a8fc5 50%, #8ab0d5 100%);
+            border: 4px solid #5a4a3a;
+            border-radius: 4px;
+        }
+        .window::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #5a4a3a;
+        }
+        .window::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #5a4a3a;
+        }
+        
+        /* Desk 1 - Dave */
+        .desk1 {
+            position: absolute;
+            bottom: 100px;
+            left: 50px;
+        }
+        .desk {
+            width: 140px;
+            height: 50px;
+            background: linear-gradient(180deg, #5a4a3a 0%, #4a3a2a 100%);
+            border-radius: 4px;
+            position: relative;
+        }
+        .desk::before {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            left: 10px;
+            width: 20px;
+            height: 20px;
+            background: #4a3a2a;
+        }
+        .desk::after {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            background: #4a3a2a;
+        }
+        
+        .chair {
+            position: absolute;
+            bottom: -60px;
+            left: 50px;
+            width: 50px;
+            height: 60px;
+        }
+        .chair-back {
+            width: 50px;
+            height: 40px;
+            background: #3a3a4a;
+            border-radius: 8px 8px 0 0;
+        }
+        .chair-seat {
+            width: 50px;
+            height: 15px;
+            background: #4a4a5a;
+            border-radius: 0 0 4px 4px;
+        }
+        
+        /* Character - Dave */
+        .character {
+            position: absolute;
+            bottom: 50px;
+            left: 70px;
+        }
+        .char-body {
+            width: 40px;
+            height: 50px;
+            background: linear-gradient(180deg, #6c5ce7 0%, #5a4ac7 100%);
+            border-radius: 8px 8px 4px 4px;
+            position: relative;
+        }
+        .char-head {
+            width: 30px;
+            height: 30px;
+            background: #f0d0b0;
+            border-radius: 50%;
+            position: absolute;
+            top: -25px;
+            left: 5px;
+        }
+        .char-eyes {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+        }
+        .char-eye {
+            width: 6px;
+            height: 6px;
+            background: #333;
+            border-radius: 50%;
+        }
+        .char-smile {
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 5px;
+            border-bottom: 2px solid #333;
+            border-radius: 0 0 10px 10px;
+        }
+        
+        /* Monitor */
+        .monitor {
+            position: absolute;
+            bottom: 55px;
+            left: 75px;
+            width: 60px;
+            height: 45px;
+            background: #2a2a3a;
+            border: 3px solid #4a4a5a;
+            border-radius: 4px;
+        }
+        .monitor-screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #0a2a4a 0%, #0a4a6a 100%);
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .monitor-text {
+            color: var(--success);
+            font-size: 8px;
+            font-family: monospace;
+        }
+        .monitor-stand {
+            width: 20px;
+            height: 15px;
+            background: #4a4a5a;
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* Keyboard */
+        .keyboard {
+            position: absolute;
+            bottom: 52px;
+            left: 85px;
+            width: 40px;
+            height: 15px;
+            background: #3a3a4a;
+            border-radius: 2px;
+        }
+        
+        /* Coffee area */
+        .coffee-area {
+            position: absolute;
+            bottom: 100px;
+            right: 200px;
+        }
+        .coffee-cup {
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 0 0 4px 4px;
+            position: relative;
+        }
+        .coffee-cup::before {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 4px;
+            width: 10px;
+            height: 12px;
+            border: 3px solid #fff;
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+        }
+        .steam {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 3px;
+        }
+        .steam-line {
+            width: 2px;
+            height: 8px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            animation: steam 1s infinite;
+        }
+        .steam-line:nth-child(2) { animation-delay: 0.3s; }
+        .steam-line:nth-child(3) { animation-delay: 0.6s; }
+        @keyframes steam {
+            0% { opacity: 0; transform: translateY(0); }
+            50% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        
+        /* Smoking area */
+        .smoking-area {
+            position: absolute;
+            bottom: 100px;
+            right: 50px;
+        }
+        .smoker {
+            position: relative;
+        }
+        .smoke {
+            position: absolute;
+            top: -30px;
+            left: 20px;
+        }
+        .smoke-ring {
+            width: 15px;
+            height: 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            animation: smoke-ring 3s infinite;
+        }
+        @keyframes smoke-ring {
+            0% { opacity: 0; transform: translateY(0) scale(0.5); }
+            50% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-30px) scale(1.2); }
+        }
+        
+        /* Status bar */
+        .status-bar {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .status-item {
+            background: var(--bg2);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .status-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .status-icon.active { background: rgba(0,210,106,0.2); }
+        .status-icon.idle { background: rgba(247,147,26,0.2); }
+        .status-text h4 { font-size: 0.9rem; margin-bottom: 2px; }
+        .status-text p { font-size: 0.8rem; color: var(--text2); }
+        
+        footer { text-align: center; padding: 30px; color: var(--text2); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <nav>
+        <span class="logo">🧔 Bearded Team</span>
+        <select onchange="location.href=this.value">
+            <option value="index.html">📊 Home</option>
+            <option value="trading.html">📈 Trading</option>
+            <option value="history.html">📋 History</option>
+            <option value="office.html" selected>🏢 Live Office</option>
+            <option value="strategy.html">📚 Strategy</option>
+        </select>
+    </nav>
+    
+    <main>
+        <div class="card">
+            <h2 style="font-size: 1rem; color: var(--text2); margin-bottom: 16px; text-transform: uppercase;">🏢 Live Office</h2>
+            
+            <div class="office-scene">
+                <!-- Window -->
+                <div class="window"></div>
+                
+                <!-- Floor -->
+                <div class="floor"></div>
+                
+                <!-- Dave at desk -->
+                <div class="desk1">
+                    <div class="monitor">
+                        <div class="monitor-screen">
+                            <span class="monitor-text">$100<br/>Scanning...</span>
+                        </div>
+                        <div class="monitor-stand"></div>
+                    </div>
+                    <div class="keyboard"></div>
+                    <div class="desk"></div>
+                    <div class="character">
+                        <div class="char-head">
+                            <div class="char-eyes">
+                                <div class="char-eye"></div>
+                                <div class="char-eye"></div>
+                            </div>
+                            <div class="char-smile"></div>
+                        </div>
+                        <div class="char-body"></div>
+                    </div>
+                    <div class="chair">
+                        <div class="chair-back"></div>
+                        <div class="chair-seat"></div>
+                    </div>
+                </div>
+                
+                <!-- Coffee area -->
+                <div class="coffee-area">
+                    <div class="coffee-cup">
+                        <div class="steam">
+                            <div class="steam-line"></div>
+                            <div class="steam-line"></div>
+                            <div class="steam-line"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Smoking area -->
+                <div class="smoking-area">
+                    <div class="smoker">
+                        <div class="smoke">
+                            <div class="smoke-ring"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-icon active">🤖</div>
+                    <div class="status-text">
+                        <h4>Dave (Me)</h4>
+                        <p>Monitoring systems</p>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-icon active">📊</div>
+                    <div class="status-text">
+                        <h4>MSS Trader</h4>
+                        <p>Scanning for signals</p>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-icon idle">☕</div>
+                    <div class="status-text">
+                        <h4>Coffee Break</h4>
+                        <p>Ready when you need me</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        🧔 Bearded Team HQ • Always Working
+    </footer>
+</body>
+</html>

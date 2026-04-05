@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy - Bearded Team</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f; --bg2: #12121a; --card: #1a1a24;
+            --accent: #f7931a; --accent2: #6c5ce7; --success: #00d26a; --danger: #ff4757;
+            --text: #fff; --text2: #8b8b9e; --border: rgba(255,255,255,0.08);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 60px;
+            background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 100;
+        }
+        .logo { font-weight: 700; font-size: 1.2rem; color: var(--accent); margin-right: 20px; white-space: nowrap; }
+        nav select {
+            background: var(--card); border: 1px solid var(--border); color: var(--text);
+            padding: 10px 16px; border-radius: 10px; font-size: 0.9rem; cursor: pointer; flex: 1; max-width: 300px;
+        }
+        nav select:focus { outline: none; border-color: var(--accent); }
+        
+        main { padding: 80px 20px 40px; max-width: 800px; margin: 0 auto; }
+        
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; margin-bottom: 20px;
+        }
+        
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        .subtitle { color: var(--text2); margin-bottom: 24px; }
+        
+        h2 {
+            font-size: 1.1rem; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        h2 .num {
+            width: 30px; height: 30px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; font-weight: 700;
+        }
+        
+        .condition {
+            background: var(--bg2);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .condition h3 {
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--accent);
+        }
+        .condition p {
+            font-size: 0.9rem;
+            color: var(--text2);
+            line-height: 1.6;
+        }
+        
+        .rules-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 500px) { .rules-grid { grid-template-columns: 1fr; } }
+        
+        .rule-box {
+            background: var(--bg2);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .rule-box .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        .rule-box .label {
+            font-size: 0.8rem;
+            color: var(--text2);
+        }
+        
+        .limits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .limit-item {
+            background: var(--bg2);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .limit-item .icon {
+            font-size: 1.2rem;
+        }
+        .limit-item .text h4 { font-size: 0.9rem; margin-bottom: 2px; }
+        .limit-item .text p { font-size: 0.8rem; color: var(--text2); }
+        
+        .example-box {
+            background: linear-gradient(135deg, rgba(108,92,231,0.1), rgba(247,147,26,0.1));
+            border: 1px solid rgba(108,92,231,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .example-box h4 {
+            font-size: 0.9rem;
+            color: var(--accent2);
+            margin-bottom: 12px;
+        }
+        .example-box code {
+            display: block;
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+        
+        footer { text-align: center; padding: 30px; color: var(--text2); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <nav>
+        <span class="logo">🧔 Bearded Team</span>
+        <select onchange="location.href=this.value">
+            <option value="index.html">📊 Home</option>
+            <option value="trading.html">📈 Trading</option>
+            <option value="history.html">📋 History</option>
+            <option value="office.html">🏢 Live Office</option>
+            <option value="strategy.html" selected>📚 Strategy</option>
+        </select>
+    </nav>
+    
+    <main>
+        <div class="card">
+            <h1>📚 MSS Trading Strategy</h1>
+            <p class="subtitle">Market Structure Shift — v6</p>
+            
+            <h2><span class="num">1</span> Entry Conditions</h2>
+            
+            <div class="condition">
+                <h3>📊 Clean Trend (55%+)</h3>
+                <p>Count the last 20 candles. If 55%+ closed in the same direction, we have a trend.</p>
+            </div>
+            
+            <div class="condition">
+                <h3>⏰ Timing (15+ minutes)</h3>
+                <p>We only enter 15+ minutes into the hour. No entries at :00-:14.</p>
+            </div>
+            
+            <div class="condition">
+                <h3>📈 MSS Signal</h3>
+                <p>Market Structure Shift: Price breaks above/below previous high/low after a trend.</p>
+            </div>
+            
+            <div class="condition">
+                <h3>✅ Confirmation</h3>
+                <p>Next candle confirms the entry direction before we enter.</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2><span class="num">2</span> Position Rules</h2>
+            
+            <div class="rules-grid">
+                <div class="rule-box">
+                    <div class="value">ATR × 2.0</div>
+                    <div class="label">Stop Loss</div>
+                </div>
+                <div class="rule-box">
+                    <div class="value">RR 1:1.5</div>
+                    <div class="label">Risk:Reward</div>
+                </div>
+                <div class="rule-box">
+                    <div class="value">10%</div>
+                    <div class="label">Risk Per Trade</div>
+                </div>
+                <div class="rule-box">
+                    <div class="value">1.5</div>
+                    <div class="label">Take Profit (ATR)</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2><span class="num">3</span> Limits & Safety</h2>
+            
+            <div class="limits-grid">
+                <div class="limit-item">
+                    <span class="icon">⏰</span>
+                    <div class="text">
+                        <h4>Max 3/hr</h4>
+                        <p>Max trades per hour</p>
+                    </div>
+                </div>
+                <div class="limit-item">
+                    <span class="icon">🎯</span>
+                    <div class="text">
+                        <h4>+$50/day</h4>
+                        <p>Daily profit target</p>
+                    </div>
+                </div>
+                <div class="limit-item">
+                    <span class="icon">🚫</span>
+                    <div class="text">
+                        <h4>1hr cooldown</h4>
+                        <p>After 2 losses on pair</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2><span class="num">4</span> Trading Hours</h2>
+            
+            <div class="limits-grid">
+                <div class="limit-item">
+                    <span class="icon">📅</span>
+                    <div class="text">
+                        <h4>Sun-Thu</h4>
+                        <p>Trading days</p>
+                    </div>
+                </div>
+                <div class="limit-item">
+                    <span class="icon">🕙</span>
+                    <div class="text">
+                        <h4>10:00-00:00</h4>
+                        <p>Israel time</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="example-box">
+                <h4>📌 Example</h4>
+                <code>
+ETH at $2,200 with ATR $10
+
+Entry: $2,200
+Stop Loss: $2,200 - ($10 × 2) = $2,180
+Take Profit: $2,200 + ($10 × 1.5) = $2,215
+
+Risk: $20 (10% of $200)
+Reward: $15 (1.5× risk)
+                </code>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        🧔 MSS Strategy v6 • BTC, BNB, ETH
+    </footer>
+</body>
+</html>
