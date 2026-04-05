@@ -81,133 +81,9 @@
         
         main { padding: 100px 40px 40px; max-width: 1400px; margin: 0 auto; }
         
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-        }
-        
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
         .page-header h1 { font-size: 2.5rem; font-weight: 700; }
         
-        .filter-bar {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 30px;
-        }
-        
-        .filter-bar select, .filter-bar input {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-family: inherit;
-        }
-        
-        .filter-bar select:focus, .filter-bar input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 28px;
-        }
-        
-        /* Table Styles */
-        .trades-table-container {
-            overflow-x: auto;
-        }
-        
-        .trades-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 900px;
-        }
-        
-        .trades-table th {
-            text-align: left;
-            padding: 16px 20px;
-            background: var(--bg-secondary);
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .trades-table th:first-child { border-radius: 12px 0 0 0; }
-        .trades-table th:last-child { border-radius: 0 12px 0 0; }
-        
-        .trades-table td {
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-        }
-        
-        .trades-table tbody tr {
-            transition: all 0.2s;
-        }
-        
-        .trades-table tbody tr:hover {
-            background: rgba(108, 92, 231, 0.08);
-        }
-        
-        .dir-tag {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 10px;
-            font-size: 0.85rem;
-            font-weight: 700;
-        }
-        
-        .dir-tag.long {
-            background: rgba(0, 210, 106, 0.15);
-            color: var(--success);
-        }
-        
-        .dir-tag.short {
-            background: rgba(255, 71, 87, 0.15);
-            color: var(--danger);
-        }
-        
-        .result-tag {
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        
-        .result-tag.win {
-            background: rgba(0, 210, 106, 0.15);
-            color: var(--success);
-        }
-        
-        .result-tag.loss {
-            background: rgba(255, 71, 87, 0.15);
-            color: var(--danger);
-        }
-        
-        .result-tag.pending {
-            background: rgba(255, 193, 7, 0.15);
-            color: var(--warning);
-        }
-        
-        .pnl-value {
-            font-weight: 700;
-            font-size: 1.05rem;
-        }
-        
-        .pnl-value.positive { color: var(--success); }
-        .pnl-value.negative { color: var(--danger); }
-        
-        /* Stats Row */
         .stats-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -223,53 +99,62 @@
             text-align: center;
         }
         
-        .stat-box .value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-        
-        .stat-box .label {
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
+        .stat-box .value { font-size: 2rem; font-weight: 700; margin-bottom: 6px; }
+        .stat-box .label { color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
         .stat-box .value.green { color: var(--success); }
         .stat-box .value.red { color: var(--danger); }
         .stat-box .value.purple { color: var(--accent); }
         
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px;
+        }
+        
+        .trades-table-container { overflow-x: auto; }
+        
+        .trades-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        
+        .trades-table th {
+            text-align: left;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
             color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 10px 10px 0 0;
         }
         
-        .empty-state .icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-        }
+        .trades-table td { padding: 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .trades-table tbody tr:hover { background: rgba(108, 92, 231, 0.08); }
         
-        .empty-state h3 {
-            font-size: 1.3rem;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
+        .dir-tag { display: inline-block; padding: 8px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; }
+        .dir-tag.long { background: rgba(0, 210, 106, 0.15); color: var(--success); }
+        .dir-tag.short { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
         
-        footer {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
+        .result-tag { display: inline-block; padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; }
+        .result-tag.win { background: rgba(0, 210, 106, 0.15); color: var(--success); }
+        .result-tag.loss { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        
+        .pnl-value { font-weight: 700; font-size: 1.05rem; }
+        .pnl-value.positive { color: var(--success); }
+        .pnl-value.negative { color: var(--danger); }
+        
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+        .empty-state .icon { font-size: 4rem; margin-bottom: 20px; }
+        .empty-state h3 { font-size: 1.3rem; margin-bottom: 8px; color: var(--text-primary); }
+        
+        .last-update { text-align: right; font-size: 0.8rem; color: var(--text-secondary); margin-top: 20px; }
+        
+        footer { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 0.85rem; }
         
         @media (max-width: 768px) {
             nav { padding: 0 20px; }
             main { padding: 90px 20px 20px; }
             .stats-row { grid-template-columns: repeat(2, 1fr); }
-            .filter-bar { flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -288,89 +173,95 @@
             <h1>📋 Trade History</h1>
         </div>
         
-        <!-- Stats -->
         <div class="stats-row">
             <div class="stat-box">
-                <div class="value">0</div>
+                <div class="value" id="totalTrades">0</div>
                 <div class="label">Total Trades</div>
             </div>
             <div class="stat-box">
-                <div class="value green">0%</div>
+                <div class="value green" id="winRate">0%</div>
                 <div class="label">Win Rate</div>
             </div>
             <div class="stat-box">
-                <div class="value purple">$0.00</div>
+                <div class="value purple" id="totalPnL">$0</div>
                 <div class="label">Total PnL</div>
             </div>
             <div class="stat-box">
-                <div class="value">--</div>
+                <div class="value" id="avgTrade">--</div>
                 <div class="label">Avg Trade</div>
             </div>
         </div>
         
-        <!-- Filters -->
-        <div class="filter-bar">
-            <select>
-                <option>All Pairs</option>
-                <option>BTCUSDT</option>
-            </select>
-            <select>
-                <option>All Directions</option>
-                <option>Long</option>
-                <option>Short</option>
-            </select>
-            <select>
-                <option>All Results</option>
-                <option>Win</option>
-                <option>Loss</option>
-                <option>Pending</option>
-            </select>
-            <input type="date" value="2026-04-01">
-            <input type="date" value="2026-04-30">
-        </div>
-        
-        <!-- Trades Table -->
         <div class="card">
             <div class="trades-table-container">
                 <table class="trades-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Date & Time</th>
-                            <th>Pair</th>
-                            <th>Direction</th>
-                            <th>Entry Price</th>
-                            <th>Exit Price</th>
-                            <th>ATR</th>
-                            <th>PnL</th>
-                            <th>Result</th>
+                            <th>#</th><th>Date & Time</th><th>Pair</th><th>Direction</th>
+                            <th>Entry Price</th><th>Exit Price</th><th>ATR</th><th>PnL</th><th>Result</th>
                         </tr>
                     </thead>
                     <tbody id="tradesBody">
-                        <tr>
-                            <td colspan="9">
-                                <div class="empty-state">
-                                    <div class="icon">🎯</div>
-                                    <h3>No Trades Yet</h3>
-                                    <p>MSS Trader started today at 10:00 AM Israel time.<br/>Trades will appear here automatically when executed.</p>
-                                </div>
-                            </td>
-                        </tr>
+                        <tr><td colspan="9"><div class="empty-state"><div class="icon">🎯</div><h3>No Trades Yet</h3><p>Loading...</p></div></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        
+        <div class="last-update" id="lastUpdate">Loading...</div>
     </main>
     
     <footer>
-        TeamFlow Dashboard • Trade History • Last sync: April 5, 2026 10:00 AM
+        TeamFlow Dashboard • Trade History • <span style="color: var(--accent);">Live Data</span>
     </footer>
     
     <script>
-        // Auto-refresh trades every 30 seconds
-        function loadTrades() {
-            // This would fetch from logs/virtual-trades.json
-            // For demo, shows empty state
+        const GIST_URL = 'https://gist.githubusercontent.com/rondangur-source/c750c53b60430cd38cc5793c9efd0e7e/raw/dashboard-data.json';
+        
+        async function loadTrades() {
+            try {
+                const response = await fetch(GIST_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch');
+                
+                const data = await response.json();
+                updateUI(data);
+            } catch (err) {
+                console.error('Error loading trades:', err);
+            }
+        }
+        
+        function updateUI(data) {
+            const stats = data.stats || {};
+            const trades = data.recentTrades || [];
+            
+            document.getElementById('totalTrades').textContent = stats.totalTrades || 0;
+            document.getElementById('winRate').textContent = (stats.winRate || 0) + '%';
+            document.getElementById('totalPnL').textContent = '$' + (stats.totalPnL || 0).toFixed(2);
+            document.getElementById('totalPnL').className = stats.totalPnL >= 0 ? 'value green' : 'value red';
+            document.getElementById('avgTrade').textContent = stats.avgTrade ? '$' + stats.avgTrade.toFixed(2) : '--';
+            
+            const tbody = document.getElementById('tradesBody');
+            
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="icon">🎯</div><h3>No Trades Yet</h3><p>MSS Trader will execute trades when signals are detected.</p></div></td></tr>';
+            } else {
+                tbody.innerHTML = trades.map((trade, i) => `
+                    <tr>
+                        <td>#${trade.id || i + 1}</td>
+                        <td>${trade.exitTime || trade.entryTime || '--'}</td>
+                        <td>${trade.pair || 'BTCUSDT'}</td>
+                        <td><span class="dir-tag ${trade.direction?.toLowerCase()}">${trade.direction || '--'}</span></td>
+                        <td>${trade.entryPrice ? '$' + trade.entryPrice.toFixed(2) : '--'}</td>
+                        <td>${trade.exitPrice ? '$' + trade.exitPrice.toFixed(2) : '--'}</td>
+                        <td>${trade.atr ? '$' + trade.atr.toFixed(2) : '--'}</td>
+                        <td><span class="pnl-value ${trade.pnl >= 0 ? 'positive' : 'negative'}">${trade.pnl >= 0 ? '+' : ''}$${trade.pnl?.toFixed(2)}</span></td>
+                        <td><span class="result-tag ${trade.pnl > 0 ? 'win' : 'loss'}">${trade.pnl > 0 ? 'WIN' : 'LOSS'}</span></td>
+                    </tr>
+                `).join('');
+            }
+            
+            const updateTime = new Date(data.timestamp);
+            document.getElementById('lastUpdate').textContent = 'Last updated: ' + updateTime.toLocaleTimeString() + ' | Source: GitHub Gist';
         }
         
         loadTrades();

@@ -13,7 +13,7 @@
             --bg-primary: #0a0a0f;
             --bg-secondary: #12121a;
             --bg-card: #1a1a24;
-            --accent: #f7931a; /* Bitcoin orange */
+            --accent: #f7931a;
             --accent-secondary: #6c5ce7;
             --accent-glow: rgba(247, 147, 26, 0.25);
             --text-primary: #ffffff;
@@ -50,7 +50,6 @@
             50% { opacity: 1; }
         }
         
-        /* Navigation */
         nav {
             position: fixed;
             top: 0;
@@ -75,15 +74,9 @@
             gap: 10px;
         }
         
-        .nav-logo .logo-icon {
-            font-size: 1.6rem;
-        }
+        .nav-logo .logo-icon { font-size: 1.6rem; }
         
-        .nav-links {
-            display: flex;
-            gap: 8px;
-        }
-        
+        .nav-links { display: flex; gap: 8px; }
         .nav-links a {
             color: var(--text-secondary);
             text-decoration: none;
@@ -93,11 +86,9 @@
             font-size: 0.9rem;
             transition: all 0.3s;
         }
-        
         .nav-links a:hover { color: var(--text-primary); background: var(--bg-card); }
         .nav-links a.active { color: var(--text-primary); background: var(--accent); box-shadow: 0 0 25px var(--accent-glow); }
         
-        /* Main Content */
         main { padding: 100px 40px 40px; max-width: 1500px; margin: 0 auto; }
         
         .page-header {
@@ -127,6 +118,11 @@
             font-weight: 600;
         }
         
+        .status-badge.inactive {
+            background: rgba(255, 71, 87, 0.15);
+            border-color: rgba(255, 71, 87, 0.3);
+        }
+        
         .status-badge .dot {
             width: 10px;
             height: 10px;
@@ -135,12 +131,16 @@
             animation: pulse 2s infinite;
         }
         
+        .status-badge.inactive .dot {
+            background: var(--danger);
+            animation: none;
+        }
+        
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
         
-        /* Grid Layout */
         .dashboard-grid {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
@@ -157,7 +157,6 @@
         
         .card:hover { border-color: rgba(247, 147, 26, 0.2); }
         
-        /* Balance Hero */
         .balance-hero {
             grid-column: span 12;
             background: linear-gradient(135deg, rgba(247, 147, 26, 0.15), rgba(108, 92, 231, 0.1));
@@ -175,7 +174,6 @@
         .balance-item .value.success { color: var(--success); }
         .balance-item .value.danger { color: var(--danger); }
         
-        /* Stats Row */
         .stat-card { grid-column: span 3; }
         .stat-card .icon {
             width: 50px; height: 50px;
@@ -190,7 +188,6 @@
         .stat-card .value { font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; }
         .stat-card .label { color: var(--text-secondary); font-size: 0.9rem; }
         
-        /* Active Trades Section */
         .active-trades-section { grid-column: span 12; }
         .section-header {
             display: flex;
@@ -219,12 +216,6 @@
         .active-trade:hover {
             border-color: rgba(247, 147, 26, 0.3);
             box-shadow: 0 0 30px rgba(247, 147, 26, 0.1);
-        }
-        
-        .trade-direction {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
         }
         
         .trade-direction .dir-badge {
@@ -260,8 +251,7 @@
         .trade-pnl .pnl-value.negative { color: var(--danger); }
         .trade-pnl .pnl-percent { font-size: 0.85rem; margin-top: 4px; }
         
-        .trade-progress { }
-        .progress-bar {
+        .trade-progress .progress-bar {
             height: 8px;
             background: var(--bg-primary);
             border-radius: 4px;
@@ -277,25 +267,9 @@
         .progress-bar .fill.loss { background: linear-gradient(90deg, var(--danger), #ff6b7a); }
         .progress-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
         
-        .trade-actions { text-align: center; }
-        .trade-actions button {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 10px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .trade-actions button:hover { background: var(--accent); border-color: var(--accent); }
-        
-        /* Chart Section */
         .chart-section { grid-column: span 8; }
         .chart-section h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
         
-        /* PnL Card */
         .pnl-card { grid-column: span 4; }
         .pnl-card h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
         .pnl-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
@@ -305,15 +279,10 @@
         .pnl-item .value.positive { color: var(--success); }
         .pnl-item .value.negative { color: var(--danger); }
         
-        /* Recent Trades */
         .recent-trades-section { grid-column: span 12; }
         .recent-trades-section h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
         
-        .trades-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
+        .trades-table { width: 100%; border-collapse: collapse; }
         .trades-table th {
             text-align: left;
             padding: 14px 16px;
@@ -325,12 +294,7 @@
             letter-spacing: 0.5px;
             border-radius: 10px 10px 0 0;
         }
-        
-        .trades-table td {
-            padding: 16px;
-            border-bottom: 1px solid var(--border);
-        }
-        
+        .trades-table td { padding: 16px; border-bottom: 1px solid var(--border); }
         .trades-table tr:hover { background: rgba(247, 147, 26, 0.05); }
         
         .dir-tag {
@@ -351,15 +315,19 @@
         .result-tag.win { background: rgba(0, 210, 106, 0.15); color: var(--success); }
         .result-tag.loss { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
         
-        /* Footer */
+        .last-update {
+            text-align: right;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 20px;
+        }
+        
         footer { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 0.85rem; }
         
-        /* Responsive */
         @media (max-width: 1200px) {
             .balance-hero { grid-template-columns: repeat(2, 1fr); }
             .stat-card { grid-column: span 6; }
-            .chart-section { grid-column: span 12; }
-            .pnl-card { grid-column: span 12; }
+            .chart-section, .pnl-card { grid-column: span 12; }
             .active-trade { grid-template-columns: 1fr 1fr; }
         }
         
@@ -374,10 +342,7 @@
 </head>
 <body>
     <nav>
-        <div class="nav-logo">
-            <span class="logo-icon">🧔</span>
-            Bearded Trader
-        </div>
+        <div class="nav-logo"><span class="logo-icon">🧔</span> Bearded Trader</div>
         <div class="nav-links">
             <a href="index.html">Dashboard</a>
             <a href="bearded-trader.html" class="active">Bearded Trader</a>
@@ -389,48 +354,46 @@
         <div class="page-header">
             <h1>
                 🧔 Bearded Trader
-                <span class="status-badge">
+                <span id="statusBadge" class="status-badge">
                     <span class="dot"></span>
-                    ACTIVE
+                    <span id="statusText">LOADING</span>
                 </span>
             </h1>
         </div>
         
-        <!-- Balance Hero -->
         <div class="card balance-hero">
             <div class="balance-item">
                 <div class="label">Virtual Balance</div>
-                <div class="value accent">$100.00</div>
+                <div class="value accent" id="balance">$100.00</div>
             </div>
             <div class="balance-item">
                 <div class="label">Total PnL</div>
-                <div class="value">$0.00</div>
+                <div class="value" id="totalPnl">$0.00</div>
             </div>
             <div class="balance-item">
                 <div class="label">Win Rate</div>
-                <div class="value">--%</div>
+                <div class="value" id="winRate">--%</div>
             </div>
             <div class="balance-item">
                 <div class="label">Active Trades</div>
-                <div class="value">0</div>
+                <div class="value" id="activeCount">0</div>
             </div>
         </div>
         
         <div class="dashboard-grid" style="margin-top: 24px;">
-            <!-- Stats -->
             <div class="card stat-card">
                 <div class="icon orange">📊</div>
-                <div class="value">0</div>
+                <div class="value" id="totalTrades">0</div>
                 <div class="label">Total Trades</div>
             </div>
             <div class="card stat-card">
                 <div class="icon green">✅</div>
-                <div class="value">0</div>
+                <div class="value" id="wins">0</div>
                 <div class="label">Wins</div>
             </div>
             <div class="card stat-card">
                 <div class="icon red">❌</div>
-                <div class="value">0</div>
+                <div class="value" id="losses">0</div>
                 <div class="label">Losses</div>
             </div>
             <div class="card stat-card">
@@ -439,18 +402,15 @@
                 <div class="label">Expected WR</div>
             </div>
             
-            <!-- Active Trades Section -->
             <div class="card active-trades-section">
                 <div class="section-header">
-                    <h2>⚡ Active Trades <span style="color: var(--text-secondary); font-weight: 400; font-size: 1rem;">— 0 running</span></h2>
+                    <h2>⚡ Active Trades <span id="activeTradesCount" style="color: var(--text-secondary); font-weight: 400; font-size: 1rem;">— 0 running</span></h2>
                     <div class="live-indicator">
                         <span class="dot"></span>
                         LIVE
                     </div>
                 </div>
-                
                 <div id="activeTradesContainer">
-                    <!-- No active trades message -->
                     <div style="text-align: center; padding: 60px 20px; color: var(--text-secondary);">
                         <div style="font-size: 3rem; margin-bottom: 16px;">🎯</div>
                         <div style="font-size: 1.1rem; margin-bottom: 8px;">No Active Trades</div>
@@ -459,67 +419,56 @@
                 </div>
             </div>
             
-            <!-- Chart -->
             <div class="card chart-section">
                 <h2>📈 Balance History</h2>
                 <canvas id="balanceChart" height="250"></canvas>
             </div>
             
-            <!-- PnL Breakdown -->
             <div class="card pnl-card">
                 <h2>💰 PnL Breakdown</h2>
                 <div class="pnl-item">
                     <span class="label">Gross Profit</span>
-                    <span class="value positive">$0.00</span>
+                    <span class="value positive" id="grossProfit">$0.00</span>
                 </div>
                 <div class="pnl-item">
                     <span class="label">Gross Loss</span>
-                    <span class="value negative">$0.00</span>
+                    <span class="value negative" id="grossLoss">$0.00</span>
                 </div>
                 <div class="pnl-item">
                     <span class="label">Net PnL</span>
-                    <span class="value">$0.00</span>
+                    <span class="value" id="netPnl">$0.00</span>
                 </div>
                 <div class="pnl-item">
                     <span class="label">Best Trade</span>
-                    <span class="value positive">--</span>
+                    <span class="value positive" id="bestTrade">--</span>
                 </div>
                 <div class="pnl-item">
                     <span class="label">Worst Trade</span>
-                    <span class="value negative">--</span>
+                    <span class="value negative" id="worstTrade">--</span>
                 </div>
                 <div class="pnl-item">
                     <span class="label">Avg Trade</span>
-                    <span class="value">--</span>
+                    <span class="value" id="avgTrade">--</span>
                 </div>
             </div>
             
-            <!-- Recent Trades Table -->
             <div class="card recent-trades-section">
                 <h2>📋 Recent Trades</h2>
                 <table class="trades-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Date/Time</th>
-                            <th>Pair</th>
-                            <th>Direction</th>
-                            <th>Entry</th>
-                            <th>Exit</th>
-                            <th>PnL</th>
-                            <th>Result</th>
+                            <th>#</th><th>Date/Time</th><th>Pair</th><th>Direction</th>
+                            <th>Entry</th><th>Exit</th><th>PnL</th><th>Result</th>
                         </tr>
                     </thead>
                     <tbody id="recentTradesBody">
-                        <tr>
-                            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                                No trades yet — Trader started today at 10:00 AM
-                            </td>
-                        </tr>
+                        <tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">Loading trades...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        
+        <div class="last-update" id="lastUpdate">Last updated: --</div>
     </main>
     
     <footer>
@@ -529,53 +478,187 @@
     </footer>
     
     <script>
-        // Balance Chart
-        const ctx = document.getElementById('balanceChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Start', 'Now'],
-                datasets: [{
-                    label: 'Balance',
-                    data: [100, 100],
-                    borderColor: '#f7931a',
-                    backgroundColor: 'rgba(247, 147, 26, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointBackgroundColor: '#f7931a',
-                    pointRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        min: 95,
-                        max: 105,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#8b8b9e', callback: v => '$' + v }
-                    },
-                    x: { grid: { display: false }, ticks: { color: '#8b8b9e' } }
-                }
+        // Gist data URL
+        const GIST_URL = 'https://gist.githubusercontent.com/rondangur-source/c750c53b60430cd38cc5793c9efd0e7e/raw/dashboard-data.json';
+        
+        let balanceChart = null;
+        
+        async function loadDashboardData() {
+            try {
+                const response = await fetch(GIST_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch');
+                
+                const data = await response.json();
+                updateUI(data);
+            } catch (err) {
+                console.error('Error loading data:', err);
             }
-        });
-        
-        // Live update simulation
-        function updateActiveTrades() {
-            // This would fetch from your logs/virtual-trades.json
-            // For demo, we show empty state
         }
         
-        // Poll every 10 seconds
-        setInterval(updateActiveTrades, 10000);
-        
-        // Format time helper
-        function formatTime(date) {
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' Israel';
+        function updateUI(data) {
+            // Update status
+            const isActive = data.tradingStatus?.isActive;
+            const statusBadge = document.getElementById('statusBadge');
+            const statusText = document.getElementById('statusText');
+            
+            if (isActive) {
+                statusBadge.classList.remove('inactive');
+                statusText.textContent = 'ACTIVE';
+            } else {
+                statusBadge.classList.add('inactive');
+                statusText.textContent = 'INACTIVE';
+            }
+            
+            // Update stats
+            const stats = data.stats || {};
+            document.getElementById('balance').textContent = '$' + (stats.balance || 100).toFixed(2);
+            document.getElementById('totalPnl').textContent = '$' + (stats.totalPnL || 0).toFixed(2);
+            document.getElementById('totalPnl').className = 'value ' + (stats.totalPnL >= 0 ? 'success' : 'danger');
+            document.getElementById('winRate').textContent = (stats.winRate || 0) + '%';
+            document.getElementById('activeCount').textContent = data.activeTrades?.length || 0;
+            
+            document.getElementById('totalTrades').textContent = stats.totalTrades || 0;
+            document.getElementById('wins').textContent = stats.wins || 0;
+            document.getElementById('losses').textContent = stats.losses || 0;
+            
+            document.getElementById('grossProfit').textContent = '$' + (stats.grossProfit || 0).toFixed(2);
+            document.getElementById('grossLoss').textContent = '$' + (stats.grossLoss || 0).toFixed(2);
+            document.getElementById('netPnl').textContent = '$' + (stats.totalPnL || 0).toFixed(2);
+            document.getElementById('bestTrade').textContent = stats.bestTrade ? '$' + stats.bestTrade.toFixed(2) : '--';
+            document.getElementById('worstTrade').textContent = stats.worstTrade ? '$' + stats.worstTrade.toFixed(2) : '--';
+            document.getElementById('avgTrade').textContent = stats.avgTrade ? '$' + stats.avgTrade.toFixed(2) : '--';
+            
+            // Update active trades
+            renderActiveTrades(data.activeTrades || []);
+            
+            // Update recent trades
+            renderRecentTrades(data.recentTrades || []);
+            
+            // Update chart
+            updateChart(data.balanceHistory || []);
+            
+            // Update timestamp
+            const updateTime = new Date(data.timestamp);
+            document.getElementById('lastUpdate').textContent = 'Last updated: ' + updateTime.toLocaleTimeString();
         }
+        
+        function renderActiveTrades(trades) {
+            const container = document.getElementById('activeTradesContainer');
+            document.getElementById('activeTradesCount').textContent = '— ' + trades.length + ' running';
+            
+            if (trades.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+                        <div style="font-size: 3rem; margin-bottom: 16px;">🎯</div>
+                        <div style="font-size: 1.1rem; margin-bottom: 8px;">No Active Trades</div>
+                        <div style="font-size: 0.9rem;">Scanning BTCUSDT... Waiting for MSS signal</div>
+                    </div>`;
+                return;
+            }
+            
+            container.innerHTML = trades.map(trade => `
+                <div class="active-trade">
+                    <div class="trade-direction">
+                        <div class="dir-badge ${trade.direction.toLowerCase()}">${trade.direction}</div>
+                        <div class="pair">${trade.pair}</div>
+                    </div>
+                    <div class="trade-info">
+                        <div class="label">Entry Price</div>
+                        <div class="value highlight">$${trade.entryPrice?.toFixed(2)}</div>
+                    </div>
+                    <div class="trade-info">
+                        <div class="label">Current Price</div>
+                        <div class="value">$${trade.currentPrice?.toFixed(2) || '--'}</div>
+                    </div>
+                    <div class="trade-info">
+                        <div class="label">SL / TP</div>
+                        <div class="value">$${trade.stopLoss?.toFixed(2)} / $${trade.takeProfit?.toFixed(2)}</div>
+                    </div>
+                    <div class="trade-pnl">
+                        <div class="pnl-value ${trade.unrealizedPnL >= 0 ? 'positive' : 'negative'}">${trade.unrealizedPnL >= 0 ? '+' : ''}$${trade.unrealizedPnL?.toFixed(2)}</div>
+                        <div class="pnl-percent">${trade.pnlPercent?.toFixed(1)}%</div>
+                    </div>
+                    <div class="trade-progress">
+                        <div class="progress-bar">
+                            <div class="fill ${trade.unrealizedPnL >= 0 ? 'profit' : 'loss'}" style="width: ${Math.min(Math.abs(trade.progressToTP || 0), 100)}%"></div>
+                        </div>
+                        <div class="progress-labels">
+                            <span>SL</span>
+                            <span>${trade.progressToTP?.toFixed(0)}% to TP</span>
+                            <span>TP</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderRecentTrades(trades) {
+            const tbody = document.getElementById('recentTradesBody');
+            
+            if (trades.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No trades yet — Trader started at 10:00 AM</td></tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = trades.map((trade, i) => `
+                <tr>
+                    <td>#${trade.id || i + 1}</td>
+                    <td>${trade.exitTime || trade.entryTime || '--'}</td>
+                    <td>${trade.pair}</td>
+                    <td><span class="dir-tag ${trade.direction.toLowerCase()}">${trade.direction}</span></td>
+                    <td>$${trade.entryPrice?.toFixed(2)}</td>
+                    <td>${trade.exitPrice ? '$' + trade.exitPrice.toFixed(2) : '--'}</td>
+                    <td><span class="pnl-value ${trade.pnl >= 0 ? 'positive' : 'negative'}">${trade.pnl >= 0 ? '+' : ''}$${trade.pnl?.toFixed(2)}</span></td>
+                    <td><span class="result-tag ${trade.pnl > 0 ? 'win' : 'loss'}">${trade.pnl > 0 ? 'WIN' : 'LOSS'}</span></td>
+                </tr>
+            `).join('');
+        }
+        
+        function updateChart(history) {
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            const labels = history.map(h => h.time);
+            const values = history.map(h => h.balance);
+            
+            if (balanceChart) {
+                balanceChart.data.labels = labels;
+                balanceChart.data.datasets[0].data = values;
+                balanceChart.update();
+            } else {
+                balanceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Balance',
+                            data: values,
+                            borderColor: '#f7931a',
+                            backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#f7931a',
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#8b8b9e', callback: v => '$' + v }
+                            },
+                            x: { grid: { display: false }, ticks: { color: '#8b8b9e' } }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Initial load and polling every 30 seconds
+        loadDashboardData();
+        setInterval(loadDashboardData, 30000);
     </script>
 </body>
 </html>
