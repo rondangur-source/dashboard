@@ -177,27 +177,47 @@
         function updateUI(data) {
             const stats = data.stats || {};
             const active = data.activeTrades || [];
+            const recent = data.recentTrades || [];
             
-            // Balance
+            // Get today's date in Israel timezone for filtering
+            const now = new Date();
+            const israelNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+            const todayStr = israelNow.toDateString();
+            
+            // Filter today's trades only (closed trades with exitTime on today's date)
+            const todayTrades = recent.filter(t => {
+                if (!t.exitTime) return false;
+                const exitDate = new Date(t.exitTime);
+                const exitIsrael = new Date(exitDate.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+                return exitIsrael.toDateString() === todayStr;
+            });
+            
+            // Calculate today's stats
+            const todayWins = todayTrades.filter(t => t.outcome === 'WIN').length;
+            const todayLosses = todayTrades.filter(t => t.outcome === 'LOSS').length;
+            const todayClosed = todayWins + todayLosses;
+            const todayPnL = todayTrades.reduce((sum, t) => sum + (t.pnlAmount || 0), 0);
+            const todayWR = todayClosed > 0 ? Math.round((todayWins / todayClosed) * 100) : 0;
+            
+            // Balance - use overall balance
             document.getElementById('balance').textContent = '$' + (stats.balance || 100).toFixed(2);
             
-            // Daily P&L (balance - 100)
-            const dailyPnl = (stats.balance || 100) - 100;
+            // Daily P&L - today's closed trades only
             const pnlEl = document.getElementById('dailyPnl');
-            pnlEl.textContent = (dailyPnl >= 0 ? '+$' : '-$') + Math.abs(dailyPnl).toFixed(2);
-            pnlEl.className = 'value ' + (dailyPnl >= 0 ? 'green' : 'red');
+            pnlEl.textContent = (todayPnL >= 0 ? '+$' : '-$') + Math.abs(todayPnL).toFixed(2);
+            pnlEl.className = 'value ' + (todayPnL >= 0 ? 'green' : 'red');
             
-            // Win Rate & Trades
-            document.getElementById('wr').textContent = (stats.winRate || 0) + '%';
-            document.getElementById('trades').textContent = stats.totalTrades || 0;
+            // Win Rate & Trades - today's stats
+            document.getElementById('wr').textContent = todayWR + '%';
+            document.getElementById('trades').textContent = todayClosed;
             
-            // Progress Bar
+            // Progress Bar - based on today's P&L only
             const target = 50;
-            const progress = Math.min(Math.max(dailyPnl / target * 100, 0), 100);
+            const progress = Math.min(Math.max(todayPnL / target * 100, 0), 100);
             document.getElementById('progressFill').style.width = progress + '%';
-            document.getElementById('progressText').textContent = '$' + Math.max(0, dailyPnl).toFixed(2) + ' / $' + target;
+            document.getElementById('progressText').textContent = '$' + Math.max(0, todayPnL).toFixed(2) + ' / $' + target;
             
-            if (dailyPnl < 0) {
+            if (todayPnL < 0) {
                 document.getElementById('progressFill').classList.add('danger');
             } else {
                 document.getElementById('progressFill').classList.remove('danger');
