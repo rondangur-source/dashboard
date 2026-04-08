@@ -2,18 +2,20 @@
 'use strict';
 
 const crypto = require('crypto');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
+const https  = require('https');
+const fs     = require('fs');
+const path   = require('path');
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Credentials fall back to built-in values if env vars are not set.
+// Override any value by exporting the matching env var before running.
 
 const CONFIG = {
-  apiKey:      process.env.BITGET_API_KEY,
-  secret:      process.env.BITGET_API_SECRET,
-  passphrase:  process.env.BITGET_PASSPHRASE,
-  demo:        process.env.BITGET_DEMO === 'true',
-  dryRun:      process.env.DRY_RUN === 'true',
+  apiKey:      process.env.BITGET_API_KEY    || 'bg_cba8086f33bf4d2d06628d73a2fbf2e3',
+  secret:      process.env.BITGET_API_SECRET || 'd44494e8b7fa4c7f40ad55887b6ee96c07b23a3934e25213e97ab994c7f9c1ee',
+  passphrase:  process.env.BITGET_PASSPHRASE || 'rondangur',
+  demo:        process.env.BITGET_DEMO === 'true',   // default: false → LIVE trading
+  dryRun:      process.env.DRY_RUN  === 'true',      // default: false → real orders
   baseUrl:     'api.bitget.com',
   pairs:       ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
   productType: 'USDT-FUTURES',
@@ -21,67 +23,65 @@ const CONFIG = {
   candleLimit: 100,
   maxLeverage: 25,
   riskPercent: 10,       // % of account risked per trade
-  rrRatio:     1.5,      // take profit ratio
-  swingLookback: 3,      // candles each side to confirm swing point
-  zoneCandles:   8,      // candles before swing to define supply/demand zone
-  maxSLPercent:  10,     // skip if SL is wider than this %
-  minSLPercent:  0.05,   // skip if SL is tighter than this % (would cause huge leverage)
+  rrRatio:     1.5,      // take-profit risk-reward ratio
+  swingLookback: 3,      // candles each side to confirm a swing point
+  zoneCandles:   8,      // candles before the swing that define the zone
+  maxSLPercent:  10,     // skip trade if SL distance > this %
+  minSLPercent:  0.05,   // skip trade if SL distance < this % (leverage would be extreme)
   logFile: '/data/.openclaw/workspace/logs/virtual-trades.json',
 };
 
-// ─── UTILS ───────────────────────────────────────────────────────────────────
+// Per-pair minimum order size and decimal precision for Bitget USDT-FUTURES
+const PAIR_CONFIG = {
+  BTCUSDT: { minSize: 0.001, sizePrecision: 3 },
+  ETHUSDT: { minSize: 0.01,  sizePrecision: 2 },
+  BNBUSDT: { minSize: 0.1,   sizePrecision: 1 },
+};
 
-function sign(timestamp, method, path, body = '') {
-  const msg = `${timestamp}${method.toUpperCase()}${path}${body}`;
+// ─── API AUTH & REQUEST ──────────────────────────────────────────────────────
+
+function sign(timestamp, method, reqPath, body = '') {
+  const msg = `${timestamp}${method.toUpperCase()}${reqPath}${body}`;
   return crypto.createHmac('sha256', CONFIG.secret).update(msg).digest('base64');
 }
 
 function apiRequest(method, endpoint, params = {}, body = null) {
   return new Promise((resolve, reject) => {
     const timestamp = Date.now().toString();
-    let path = endpoint;
+    let reqPath = endpoint;
 
     if (method === 'GET' && Object.keys(params).length > 0) {
-      const qs = new URLSearchParams(params).toString();
-      path = `${endpoint}?${qs}`;
+      reqPath = `${endpoint}?${new URLSearchParams(params).toString()}`;
     }
 
-    const bodyStr = body ? JSON.stringify(body) : '';
-    const signature = sign(timestamp, method, path, bodyStr);
-
-    const headers = {
+    const bodyStr  = body ? JSON.stringify(body) : '';
+    const headers  = {
       'ACCESS-KEY':        CONFIG.apiKey,
-      'ACCESS-SIGN':       signature,
+      'ACCESS-SIGN':       sign(timestamp, method, reqPath, bodyStr),
       'ACCESS-TIMESTAMP':  timestamp,
       'ACCESS-PASSPHRASE': CONFIG.passphrase,
       'Content-Type':      'application/json',
     };
 
-    const options = {
-      hostname: CONFIG.baseUrl,
-      port: 443,
-      path,
-      method,
-      headers,
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.code !== '00000') {
-            reject(new Error(`API error [${parsed.code}]: ${parsed.msg} | path: ${path}`));
-          } else {
-            resolve(parsed.data);
+    const req = https.request(
+      { hostname: CONFIG.baseUrl, port: 443, path: reqPath, method, headers },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.code !== '00000') {
+              reject(new Error(`API [${parsed.code}]: ${parsed.msg} | ${reqPath}`));
+            } else {
+              resolve(parsed.data);
+            }
+          } catch (e) {
+            reject(new Error(`Parse error: ${e.message} | raw: ${data}`));
           }
-        } catch (e) {
-          reject(new Error(`Parse error: ${e.message} | raw: ${data}`));
-        }
-      });
-    });
-
+        });
+      }
+    );
     req.on('error', reject);
     if (bodyStr) req.write(bodyStr);
     req.end();
@@ -100,9 +100,9 @@ async function getBalance() {
   return available;
 }
 
-// ─── MARKET DATA ─────────────────────────────────────────────────────────────
+// ─── CANDLE DATA ─────────────────────────────────────────────────────────────
+// Returns oldest-first: [{ ts, open, high, low, close, vol }]
 
-// Returns candles oldest-first: [{ ts, open, high, low, close, vol }]
 async function getCandles(symbol) {
   const raw = await apiRequest('GET', '/api/v2/mix/market/candles', {
     symbol,
@@ -110,8 +110,7 @@ async function getCandles(symbol) {
     granularity: CONFIG.granularity,
     limit: String(CONFIG.candleLimit),
   });
-
-  // Bitget returns newest-first; reverse to oldest-first
+  // Bitget returns newest-first → reverse to oldest-first
   return raw.reverse().map(c => ({
     ts:    parseInt(c[0]),
     open:  parseFloat(c[1]),
@@ -125,21 +124,19 @@ async function getCandles(symbol) {
 // ─── SWING POINT DETECTION ───────────────────────────────────────────────────
 
 function detectSwings(candles) {
-  const n = CONFIG.swingLookback;
+  const n     = CONFIG.swingLookback;
   const highs = [];
   const lows  = [];
 
   for (let i = n; i < candles.length - n; i++) {
     const c = candles[i];
 
-    // Swing high: highest in window
     let isHigh = true;
     for (let j = i - n; j <= i + n; j++) {
       if (j !== i && candles[j].high >= c.high) { isHigh = false; break; }
     }
     if (isHigh) highs.push({ index: i, price: c.high, ts: c.ts });
 
-    // Swing low: lowest in window
     let isLow = true;
     for (let j = i - n; j <= i + n; j++) {
       if (j !== i && candles[j].low <= c.low) { isLow = false; break; }
@@ -151,12 +148,11 @@ function detectSwings(candles) {
 }
 
 // ─── TREND DETECTION ─────────────────────────────────────────────────────────
+// Returns 'uptrend' | 'downtrend' | 'sideways'
 
-// Returns 'uptrend', 'downtrend', or 'sideways'
 function detectTrend(swings) {
-  const { highs, lows } = swings;
-  const recentHighs = highs.slice(-4);
-  const recentLows  = lows.slice(-4);
+  const recentHighs = swings.highs.slice(-4);
+  const recentLows  = swings.lows.slice(-4);
 
   if (recentHighs.length < 2 || recentLows.length < 2) return 'sideways';
 
@@ -171,25 +167,24 @@ function detectTrend(swings) {
 }
 
 // ─── BOS / MSS DETECTION ─────────────────────────────────────────────────────
+// Returns { detected, direction: 'bullish'|'bearish', keyLevel }
 
-// Returns { detected: bool, direction: 'bullish'|'bearish', bosIndex, keyLevel }
 function detectBOS(candles, swings, trend) {
   const current = candles[candles.length - 1];
-  const { highs, lows } = swings;
 
-  if (trend === 'uptrend' && lows.length >= 2) {
-    // Bearish BOS: price breaks below the second-to-last swing low (significant low before last HH)
-    const sigLow = lows[lows.length - 2]; // the swing low before the most recent one
+  if (trend === 'uptrend' && swings.lows.length >= 2) {
+    // Bearish BOS: close breaks below the significant swing low before the last higher high
+    const sigLow = swings.lows[swings.lows.length - 2];
     if (current.close < sigLow.price) {
-      return { detected: true, direction: 'bearish', bosIndex: candles.length - 1, keyLevel: sigLow.price };
+      return { detected: true, direction: 'bearish', keyLevel: sigLow.price };
     }
   }
 
-  if (trend === 'downtrend' && highs.length >= 2) {
-    // Bullish BOS: price breaks above the second-to-last swing high
-    const sigHigh = highs[highs.length - 2];
+  if (trend === 'downtrend' && swings.highs.length >= 2) {
+    // Bullish BOS: close breaks above the significant swing high before the last lower low
+    const sigHigh = swings.highs[swings.highs.length - 2];
     if (current.close > sigHigh.price) {
-      return { detected: true, direction: 'bullish', bosIndex: candles.length - 1, keyLevel: sigHigh.price };
+      return { detected: true, direction: 'bullish', keyLevel: sigHigh.price };
     }
   }
 
@@ -197,35 +192,24 @@ function detectBOS(candles, swings, trend) {
 }
 
 // ─── SUPPLY / DEMAND ZONE ────────────────────────────────────────────────────
+// Zone = the consolidation base before the swing that caused the BOS
 
-// Identifies the consolidation zone price retraces back into after BOS
 function identifyZone(candles, swings, bosDirection) {
-  const { highs, lows } = swings;
+  const pivot = bosDirection === 'bearish'
+    ? swings.highs[swings.highs.length - 1]   // supply zone: around the last swing high
+    : swings.lows[swings.lows.length - 1];     // demand zone: around the last swing low
 
-  let pivotIndex;
-  if (bosDirection === 'bearish') {
-    // Zone is around the last swing high (supply zone)
-    const lastHigh = highs[highs.length - 1];
-    if (!lastHigh) return null;
-    pivotIndex = lastHigh.index;
-  } else {
-    // Zone is around the last swing low (demand zone)
-    const lastLow = lows[lows.length - 1];
-    if (!lastLow) return null;
-    pivotIndex = lastLow.index;
-  }
+  if (!pivot) return null;
 
-  // Take N candles around the pivot (before the pivot forming the base)
-  const start = Math.max(0, pivotIndex - CONFIG.zoneCandles);
-  const end   = pivotIndex;
-  const zoneCandles = candles.slice(start, end + 1);
+  const start      = Math.max(0, pivot.index - CONFIG.zoneCandles);
+  const zoneSlice  = candles.slice(start, pivot.index + 1);
+  if (zoneSlice.length === 0) return null;
 
-  if (zoneCandles.length === 0) return null;
-
-  const zoneHigh = Math.max(...zoneCandles.map(c => c.high));
-  const zoneLow  = Math.min(...zoneCandles.map(c => c.low));
-
-  return { high: zoneHigh, low: zoneLow, pivotIndex };
+  return {
+    high:       Math.max(...zoneSlice.map(c => c.high)),
+    low:        Math.min(...zoneSlice.map(c => c.low)),
+    pivotIndex: pivot.index,
+  };
 }
 
 // ─── PULLBACK CHECK ───────────────────────────────────────────────────────────
@@ -235,107 +219,116 @@ function inZone(price, zone) {
 }
 
 // ─── REJECTION CHECK ─────────────────────────────────────────────────────────
+// Looks for wicks or weak-body candles in last 3 candles showing counter-pressure
 
 function hasRejection(candles, direction) {
-  const recent = candles.slice(-3); // last 3 candles
-  if (direction === 'bearish') {
-    // Look for upper wicks or weak bullish closes = sellers present
-    return recent.some(c => {
-      const range = c.high - c.low;
-      if (range === 0) return false;
+  return candles.slice(-3).some(c => {
+    const range = c.high - c.low;
+    if (range === 0) return false;
+    const body = Math.abs(c.close - c.open);
+
+    if (direction === 'bearish') {
       const upperWick = c.high - Math.max(c.open, c.close);
-      const body      = Math.abs(c.close - c.open);
+      // Upper wick > 30% of range  OR  weak bullish body (< 30% of range)
       return (upperWick / range > 0.30) || (c.close > c.open && body / range < 0.30);
-    });
-  } else {
-    // Look for lower wicks or weak bearish closes = buyers present
-    return recent.some(c => {
-      const range = c.high - c.low;
-      if (range === 0) return false;
+    } else {
       const lowerWick = Math.min(c.open, c.close) - c.low;
-      const body      = Math.abs(c.close - c.open);
+      // Lower wick > 30% of range  OR  weak bearish body (< 30% of range)
       return (lowerWick / range > 0.30) || (c.close < c.open && body / range < 0.30);
-    });
-  }
+    }
+  });
 }
 
 // ─── ENTRY TRIGGER ───────────────────────────────────────────────────────────
+// Last CLOSED candle (second-to-last) must be a strong directional candle
 
-// Returns true if the last confirmed candle is a strong trigger candle
 function hasEntryTrigger(candles, direction) {
-  // Use second-to-last (fully closed) candle as trigger
-  const trigger = candles[candles.length - 2];
-  const range = trigger.high - trigger.low;
+  const trigger   = candles[candles.length - 2];
+  const range     = trigger.high - trigger.low;
   if (range === 0) return false;
-  const body = Math.abs(trigger.close - trigger.open);
-  const bodyRatio = body / range;
+  const bodyRatio = Math.abs(trigger.close - trigger.open) / range;
 
-  if (direction === 'bearish') {
-    return trigger.close < trigger.open && bodyRatio > 0.40;
-  } else {
-    return trigger.close > trigger.open && bodyRatio > 0.40;
-  }
+  return direction === 'bearish'
+    ? trigger.close < trigger.open && bodyRatio > 0.40   // strong bearish candle
+    : trigger.close > trigger.open && bodyRatio > 0.40;  // strong bullish candle
 }
 
-// ─── RISK CALCULATION ────────────────────────────────────────────────────────
+// ─── RISK & POSITION SIZING ───────────────────────────────────────────────────
+// Dynamic leverage so that a SL hit = exactly 10% of account lost.
+//
+//   SL%      = distance from entry to SL as a percent of entry price
+//   Leverage = 10 / SL%   (capped at maxLeverage)
+//   Risk $   = balance × 10%
+//   Position = Risk $ × Leverage
+//   Contracts= Position / entry price   (rounded to pair minimum)
 
-function calcRisk(entry, zone, direction, balance) {
+function calcRisk(entry, zone, direction, balance, symbol) {
+  const pairConf = PAIR_CONFIG[symbol] || { minSize: 0.001, sizePrecision: 3 };
+
   let sl, tp, slPct;
 
   if (direction === 'bearish') {
-    sl = zone.high; // stop above supply zone
+    sl    = zone.high;                                   // SL above supply zone
     slPct = (sl - entry) / entry * 100;
-    tp = entry - (sl - entry) * CONFIG.rrRatio;
+    tp    = entry - (sl - entry) * CONFIG.rrRatio;       // TP at 1.5× risk
   } else {
-    sl = zone.low;  // stop below demand zone
+    sl    = zone.low;                                    // SL below demand zone
     slPct = (entry - sl) / entry * 100;
-    tp = entry + (entry - sl) * CONFIG.rrRatio;
+    tp    = entry + (entry - sl) * CONFIG.rrRatio;       // TP at 1.5× risk
   }
 
-  if (slPct <= 0) return null;
-  if (slPct < CONFIG.minSLPercent) return { skip: true, reason: `SL too tight (${slPct.toFixed(3)}%)` };
-  if (slPct > CONFIG.maxSLPercent) return { skip: true, reason: `SL too wide (${slPct.toFixed(2)}%)` };
+  if (slPct <= 0)                    return null;
+  if (slPct < CONFIG.minSLPercent)   return { skip: true, reason: `SL too tight (${slPct.toFixed(3)}%) — leverage would exceed safe limit` };
+  if (slPct > CONFIG.maxSLPercent)   return { skip: true, reason: `SL too wide (${slPct.toFixed(2)}%) — risk per leverage unit too high` };
 
   const rr = Math.abs(tp - entry) / Math.abs(sl - entry);
-  if (rr < CONFIG.rrRatio) return { skip: true, reason: `RR too low (${rr.toFixed(2)})` };
+  if (rr < CONFIG.rrRatio) return { skip: true, reason: `RR ${rr.toFixed(2)} below minimum ${CONFIG.rrRatio}` };
 
-  const leverage     = Math.min(Math.floor(CONFIG.riskPercent / slPct), CONFIG.maxLeverage);
-  const riskAmount   = balance * (CONFIG.riskPercent / 100);
+  const leverage      = Math.max(1, Math.min(Math.floor(CONFIG.riskPercent / slPct), CONFIG.maxLeverage));
+  const riskAmount    = balance * (CONFIG.riskPercent / 100);
   const positionValue = riskAmount * leverage;
-  const contractSize = positionValue / entry; // in base currency
 
-  return { sl, tp, slPct, leverage, riskAmount, positionValue, contractSize, rr };
+  // Round contract size to pair precision and enforce minimum
+  let contractSize = positionValue / entry;
+  contractSize     = parseFloat(contractSize.toFixed(pairConf.sizePrecision));
+  contractSize     = Math.max(contractSize, pairConf.minSize);
+
+  return { sl, tp, slPct, leverage, riskAmount, positionValue, contractSize, rr, pairConf };
 }
 
 // ─── SET LEVERAGE ────────────────────────────────────────────────────────────
 
-async function setLeverage(symbol, leverage) {
+async function setLeverage(symbol, leverage, side) {
+  // side: 'long' | 'short' — required by Bitget v2 even in crossed margin mode
   await apiRequest('POST', '/api/v2/mix/account/set-leverage', {}, {
     symbol,
     productType: CONFIG.productType,
-    marginCoin: 'USDT',
-    leverage: String(leverage),
-    holdSide: 'long_short',
+    marginCoin:  'USDT',
+    leverage:    String(leverage),
+    holdSide:    side,
   });
 }
 
-// ─── PLACE ORDER ────────────────────────────────────────────────────────────
+// ─── PLACE MARKET ORDER WITH PRESET SL & TP ──────────────────────────────────
+// Uses Bitget v2 place-order with presetStopLossPrice + presetTakeProfitPrice.
+// These are attached to the position the moment the market order fills,
+// so SL and TP are active from the very first tick.
 
-async function placeOrder(symbol, direction, entry, sl, tp, contractSize, leverage) {
+async function placeOrder(symbol, direction, sl, tp, contractSize, pairConf) {
   const side = direction === 'bullish' ? 'buy' : 'sell';
-  const size = contractSize.toFixed(4);
+  const size = contractSize.toFixed(pairConf.sizePrecision);
 
   const body = {
     symbol,
-    productType:         CONFIG.productType,
-    marginMode:          'crossed',
-    marginCoin:          'USDT',
+    productType:            CONFIG.productType,
+    marginMode:             'crossed',
+    marginCoin:             'USDT',
     size,
     side,
-    tradeSide:           'open',
-    orderType:           'market',
-    presetStopLossPrice: String(sl.toFixed(4)),
-    presetTakeProfitPrice: String(tp.toFixed(4)),
+    tradeSide:              'open',
+    orderType:              'market',
+    presetStopLossPrice:    sl.toFixed(4),    // ← Stop Loss attached to position
+    presetTakeProfitPrice:  tp.toFixed(4),    // ← Take Profit attached to position
   };
 
   return await apiRequest('POST', '/api/v2/mix/order/place-order', {}, body);
@@ -344,113 +337,123 @@ async function placeOrder(symbol, direction, entry, sl, tp, contractSize, levera
 // ─── LOG TRADE ───────────────────────────────────────────────────────────────
 
 function logTrade(tradeData) {
-  const logFile = CONFIG.logFile;
-  const dir = path.dirname(logFile);
+  const dir = path.dirname(CONFIG.logFile);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  let existing = { balance: 0, trades: [] };
-  if (fs.existsSync(logFile)) {
-    try { existing = JSON.parse(fs.readFileSync(logFile, 'utf8')); } catch (_) {}
+  let log = { balance: 0, trades: [] };
+  if (fs.existsSync(CONFIG.logFile)) {
+    try { log = JSON.parse(fs.readFileSync(CONFIG.logFile, 'utf8')); } catch (_) {}
   }
 
-  existing.trades.push(tradeData);
-  existing.lastUpdated = new Date().toISOString();
-  fs.writeFileSync(logFile, JSON.stringify(existing, null, 2));
+  log.trades.push(tradeData);
+  log.lastUpdated = new Date().toISOString();
+  fs.writeFileSync(CONFIG.logFile, JSON.stringify(log, null, 2));
 }
 
 // ─── ANALYSE PAIR ────────────────────────────────────────────────────────────
 
 async function analysePair(symbol, balance) {
   console.log(`\n--- Scanning ${symbol} ---`);
-  const candles = await getCandles(symbol);
-  const current = candles[candles.length - 1];
-  const entry   = current.close;
 
-  console.log(`  Current price: ${entry}`);
+  const candles = await getCandles(symbol);
+  const entry   = candles[candles.length - 1].close;
+  console.log(`  Price: ${entry}`);
 
   const swings = detectSwings(candles);
   const trend  = detectTrend(swings);
-  console.log(`  Trend: ${trend} | Swing highs: ${swings.highs.length} | Swing lows: ${swings.lows.length}`);
+  console.log(`  Trend: ${trend} | Highs: ${swings.highs.length} | Lows: ${swings.lows.length}`);
 
   if (trend === 'sideways') {
-    console.log(`  SKIP: no clear trend for MSS setup`);
+    console.log(`  SKIP — sideways market, no MSS setup`);
     return { symbol, action: 'skip', reason: 'sideways market' };
   }
 
   const bos = detectBOS(candles, swings, trend);
   if (!bos.detected) {
-    console.log(`  SKIP: no BOS/MSS detected yet`);
+    console.log(`  SKIP — no BOS/MSS yet`);
     return { symbol, action: 'skip', reason: 'no BOS detected' };
   }
-  console.log(`  BOS detected: ${bos.direction} | key level: ${bos.keyLevel}`);
+  console.log(`  BOS: ${bos.direction.toUpperCase()} | key level: ${bos.keyLevel}`);
 
   const zone = identifyZone(candles, swings, bos.direction);
   if (!zone) {
-    console.log(`  SKIP: could not identify supply/demand zone`);
+    console.log(`  SKIP — zone not identifiable`);
     return { symbol, action: 'skip', reason: 'zone not identified' };
   }
   console.log(`  Zone: ${zone.low.toFixed(4)} — ${zone.high.toFixed(4)}`);
 
   if (!inZone(entry, zone)) {
-    console.log(`  SKIP: price (${entry}) not in zone yet`);
-    return { symbol, action: 'wait', reason: `waiting for pullback into zone ${zone.low.toFixed(4)}–${zone.high.toFixed(4)}` };
+    const zoneStr = `${zone.low.toFixed(4)}–${zone.high.toFixed(4)}`;
+    console.log(`  WAIT — price not in zone yet (waiting for pullback to ${zoneStr})`);
+    return { symbol, action: 'wait', reason: `waiting for pullback into zone ${zoneStr}` };
   }
-  console.log(`  Price IS in zone`);
+  console.log(`  Price is inside zone`);
 
   if (!hasRejection(candles, bos.direction)) {
-    console.log(`  SKIP: no rejection signal at zone`);
+    console.log(`  WAIT — no rejection signal at zone yet`);
     return { symbol, action: 'wait', reason: 'waiting for rejection at zone' };
   }
   console.log(`  Rejection confirmed`);
 
   if (!hasEntryTrigger(candles, bos.direction)) {
-    console.log(`  SKIP: no entry trigger candle`);
+    console.log(`  WAIT — no trigger candle yet`);
     return { symbol, action: 'wait', reason: 'waiting for trigger candle' };
   }
   console.log(`  Entry trigger confirmed`);
 
-  const risk = calcRisk(entry, zone, bos.direction, balance);
+  const risk = calcRisk(entry, zone, bos.direction, balance, symbol);
   if (!risk || risk.skip) {
-    console.log(`  SKIP: risk calc failed — ${risk?.reason || 'invalid SL'}`);
-    return { symbol, action: 'skip', reason: risk?.reason || 'invalid SL' };
+    const reason = risk?.reason || 'invalid SL';
+    console.log(`  SKIP — ${reason}`);
+    return { symbol, action: 'skip', reason };
   }
 
   const direction = bos.direction === 'bearish' ? 'SHORT' : 'LONG';
-  console.log(`  SIGNAL: ${direction} | Entry: ${entry} | SL: ${risk.sl.toFixed(4)} | TP: ${risk.tp.toFixed(4)}`);
-  console.log(`  SL%: ${risk.slPct.toFixed(3)}% | Leverage: ${risk.leverage}x | Position: $${risk.positionValue.toFixed(2)} | Contracts: ${risk.contractSize.toFixed(4)}`);
+  console.log(`  SIGNAL: ${direction}`);
+  console.log(`    Entry : ${entry}`);
+  console.log(`    SL    : ${risk.sl.toFixed(4)}  (${risk.slPct.toFixed(3)}% away)`);
+  console.log(`    TP    : ${risk.tp.toFixed(4)}  (RR 1:${risk.rr.toFixed(2)})`);
+  console.log(`    Lev   : ${risk.leverage}x  |  Position: $${risk.positionValue.toFixed(2)}  |  Size: ${risk.contractSize} contracts`);
 
   if (CONFIG.dryRun) {
-    console.log(`  DRY RUN — order not placed`);
+    console.log(`  DRY RUN — order NOT placed`);
     return { symbol, action: 'signal', direction, entry, sl: risk.sl, tp: risk.tp, leverage: risk.leverage, dryRun: true };
   }
 
   try {
-    await setLeverage(symbol, risk.leverage);
-    const result = await placeOrder(symbol, bos.direction, entry, risk.sl, risk.tp, risk.contractSize, risk.leverage);
-    console.log(`  ORDER PLACED: orderId ${result.orderId}`);
+    // Set leverage for the specific side before opening the position
+    await setLeverage(symbol, risk.leverage, direction === 'LONG' ? 'long' : 'short');
+
+    // Place market order — SL and TP are attached via presetStopLossPrice / presetTakeProfitPrice
+    const result = await placeOrder(symbol, bos.direction, risk.sl, risk.tp, risk.contractSize, risk.pairConf);
+
+    console.log(`  ORDER PLACED — orderId: ${result.orderId}`);
+    console.log(`    SL attached : ${risk.sl.toFixed(4)}`);
+    console.log(`    TP attached : ${risk.tp.toFixed(4)}`);
 
     const tradeLog = {
-      id: result.orderId || `${symbol}-${Date.now()}`,
-      pair: symbol,
-      type: direction,
-      entryPrice: entry,
-      stopPrice: risk.sl,
-      tpPrice: risk.tp,
-      leverage: risk.leverage,
-      contractSize: risk.contractSize.toFixed(4),
+      id:            result.orderId || `${symbol}-${Date.now()}`,
+      pair:          symbol,
+      type:          direction,
+      entryPrice:    entry,
+      stopPrice:     risk.sl,
+      tpPrice:       risk.tp,
+      leverage:      risk.leverage,
+      contractSize:  String(risk.contractSize),
       positionValue: risk.positionValue.toFixed(2),
-      riskAmount: risk.riskAmount.toFixed(2),
-      slPct: risk.slPct.toFixed(3),
-      rr: risk.rr.toFixed(2),
-      outcome: null,
-      pnlAmount: null,
-      pnlPct: null,
-      timestamp: new Date().toISOString(),
-      demo: CONFIG.demo,
+      riskAmount:    risk.riskAmount.toFixed(2),
+      slPct:         risk.slPct.toFixed(3),
+      rr:            risk.rr.toFixed(2),
+      outcome:       null,
+      pnlAmount:     null,
+      pnlPct:        null,
+      timestamp:     new Date().toISOString(),
+      live:          !CONFIG.demo,
     };
 
     logTrade(tradeLog);
     return { symbol, action: 'traded', direction, orderId: result.orderId, ...tradeLog };
+
   } catch (err) {
     console.error(`  ORDER ERROR: ${err.message}`);
     return { symbol, action: 'error', reason: err.message };
@@ -461,40 +464,47 @@ async function analysePair(symbol, balance) {
 
 async function main() {
   if (!CONFIG.apiKey || !CONFIG.secret || !CONFIG.passphrase) {
-    console.error('ERROR: Missing BITGET_API_KEY, BITGET_API_SECRET, or BITGET_PASSPHRASE');
+    console.error('ERROR: No API credentials found. Set BITGET_API_KEY, BITGET_API_SECRET, BITGET_PASSPHRASE.');
     process.exit(1);
   }
 
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`CLAWBOT — Bitget Futures MSS/BOS Scan`);
-  console.log(`Mode: ${CONFIG.demo ? 'DEMO' : 'LIVE'} | Dry run: ${CONFIG.dryRun}`);
-  console.log(`Pairs: ${CONFIG.pairs.join(', ')} | Timeframe: ${CONFIG.granularity}`);
-  console.log(`Risk: ${CONFIG.riskPercent}% | Max leverage: ${CONFIG.maxLeverage}x | RR: 1:${CONFIG.rrRatio}`);
-  console.log(`${'='.repeat(60)}`);
+  const line = '='.repeat(60);
+  console.log(`\n${line}`);
+  console.log('CLAWBOT — Bitget Futures MSS/BOS Strategy');
+  console.log(`Mode    : ${CONFIG.demo ? 'DEMO (paper)' : 'LIVE (real money)'}`);
+  console.log(`Orders  : ${CONFIG.dryRun ? 'DRY RUN — analysis only' : 'REAL ORDERS ENABLED'}`);
+  console.log(`Pairs   : ${CONFIG.pairs.join(', ')}  |  TF: ${CONFIG.granularity}`);
+  console.log(`Risk    : ${CONFIG.riskPercent}% / trade  |  Max lev: ${CONFIG.maxLeverage}x  |  RR: 1:${CONFIG.rrRatio}`);
+  console.log(line);
 
   const balance = await getBalance();
-  console.log(`\nAccount balance (USDT): $${balance.toFixed(2)}`);
+  console.log(`\nAvailable USDT: $${balance.toFixed(2)}`);
 
   const results = [];
   for (const pair of CONFIG.pairs) {
     try {
-      const result = await analysePair(pair, balance);
-      results.push(result);
+      results.push(await analysePair(pair, balance));
     } catch (err) {
-      console.error(`\nERROR scanning ${pair}: ${err.message}`);
+      console.error(`\nERROR on ${pair}: ${err.message}`);
       results.push({ symbol: pair, action: 'error', reason: err.message });
     }
   }
 
-  console.log(`\n${'='.repeat(60)}`);
+  console.log(`\n${line}`);
   console.log('SCAN SUMMARY');
-  console.log(`${'='.repeat(60)}`);
+  console.log(line);
   for (const r of results) {
-    const tag = r.action === 'traded' ? '>>> TRADE' : r.action === 'signal' ? '>>> SIGNAL' : r.action === 'wait' ? 'WAIT' : 'SKIP';
-    console.log(`${r.symbol.padEnd(10)} ${tag.padEnd(12)} ${r.reason || (r.direction ? `${r.direction} entry` : '')}`);
+    const tag = {
+      traded: '>>> TRADE PLACED',
+      signal: '>>> SIGNAL (dry)',
+      wait:   'WAIT',
+      skip:   'SKIP',
+      error:  'ERROR',
+    }[r.action] || r.action;
+    const detail = r.direction ? `${r.direction}` : (r.reason || '');
+    console.log(`  ${r.symbol.padEnd(10)} ${tag.padEnd(20)} ${detail}`);
   }
 
-  // Output JSON for parsing
   console.log('\nRESULTS_JSON:' + JSON.stringify(results));
 }
 
