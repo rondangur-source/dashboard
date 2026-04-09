@@ -19,7 +19,7 @@ const CONFIG = {
   baseUrl:     'api.bitget.com',
   pairs:       ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
   productType: 'USDT-FUTURES',
-  granularity: '1H',
+  granularity: '1m',
   candleLimit: 100,
   maxLeverage: 25,
   riskPercent: 10,       // % of account risked per trade
