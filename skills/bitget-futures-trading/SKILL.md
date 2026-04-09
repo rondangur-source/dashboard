@@ -31,16 +31,12 @@ const https  = require('https');
 const fs     = require('fs');
 const path   = require('path');
 
-// ─── CONFIG ──────────────────────────────────────────────────────────────────
-// Credentials fall back to built-in values if env vars are not set.
-// Override any value by exporting the matching env var before running.
-
 const CONFIG = {
   apiKey:      process.env.BITGET_API_KEY    || 'bg_cba8086f33bf4d2d06628d73a2fbf2e3',
   secret:      process.env.BITGET_API_SECRET || 'd44494e8b7fa4c7f40ad55887b6ee96c07b23a3934e25213e97ab994c7f9c1ee',
   passphrase:  process.env.BITGET_PASSPHRASE || 'rondangur',
-  demo:        process.env.BITGET_DEMO === 'true',   // default: false → LIVE trading
-  dryRun:      process.env.DRY_RUN  === 'true',      // default: false → real orders
+  demo:        process.env.BITGET_DEMO === 'true',
+  dryRun:      process.env.DRY_RUN  === 'true',
   baseUrl:     'api.bitget.com',
   pairs:       ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
   productType: 'USDT-FUTURES',
@@ -53,7 +49,13 @@ const CONFIG = {
   zoneCandles:   8,
   maxSLPercent:  10,
   minSLPercent:  0.05,
-  logFile: '/data/.openclaw/workspace/logs/virtual-trades.json',
+  htfGranularity:   '15m',
+  htfCandleLimit:   50,
+  volumeLookback:   20,
+  volumeMultiplier: 1.5,
+  maxDailyLossPct:  20,
+  logFile:        '/data/.openclaw/workspace/logs/virtual-trades.json',
+  dailyStateFile: '/data/.openclaw/workspace/logs/daily-state.json',
 };
 
 const PAIR_CONFIG = {
@@ -61,8 +63,6 @@ const PAIR_CONFIG = {
   ETHUSDT: { minSize: 0.01,  sizePrecision: 2 },
   BNBUSDT: { minSize: 0.1,   sizePrecision: 1 },
 };
-
-// ─── API AUTH & REQUEST ──────────────────────────────────────────────────────
 
 function sign(timestamp, method, reqPath, body = '') {
   const msg = `${timestamp}${method.toUpperCase()}${reqPath}${body}`;
@@ -109,38 +109,65 @@ function apiRequest(method, endpoint, params = {}, body = null) {
   });
 }
 
-// ─── ACCOUNT ─────────────────────────────────────────────────────────────────
-
 async function getBalance() {
   const data = await apiRequest('GET', '/api/v2/mix/account/account', {
-    productType: CONFIG.productType,
-    coin: 'USDT',
+    productType: CONFIG.productType, coin: 'USDT',
   });
   const available = parseFloat(data.available);
   if (isNaN(available)) throw new Error('Could not parse balance: ' + JSON.stringify(data));
   return available;
 }
 
-// ─── CANDLE DATA ─────────────────────────────────────────────────────────────
-
-async function getCandles(symbol) {
-  const raw = await apiRequest('GET', '/api/v2/mix/market/candles', {
-    symbol,
-    productType: CONFIG.productType,
-    granularity: CONFIG.granularity,
-    limit: String(CONFIG.candleLimit),
-  });
+function parseCandles(raw) {
   return raw.reverse().map(c => ({
-    ts:    parseInt(c[0]),
-    open:  parseFloat(c[1]),
-    high:  parseFloat(c[2]),
-    low:   parseFloat(c[3]),
-    close: parseFloat(c[4]),
-    vol:   parseFloat(c[5]),
+    ts: parseInt(c[0]), open: parseFloat(c[1]), high: parseFloat(c[2]),
+    low: parseFloat(c[3]), close: parseFloat(c[4]), vol: parseFloat(c[5]),
   }));
 }
 
-// ─── SWING POINTS ────────────────────────────────────────────────────────────
+async function getCandles(symbol) {
+  const raw = await apiRequest('GET', '/api/v2/mix/market/candles', {
+    symbol, productType: CONFIG.productType,
+    granularity: CONFIG.granularity, limit: String(CONFIG.candleLimit),
+  });
+  return parseCandles(raw);
+}
+
+async function getHTFTrend(symbol) {
+  const raw = await apiRequest('GET', '/api/v2/mix/market/candles', {
+    symbol, productType: CONFIG.productType,
+    granularity: CONFIG.htfGranularity, limit: String(CONFIG.htfCandleLimit),
+  });
+  const candles = parseCandles(raw);
+  return detectTrend(detectSwings(candles));
+}
+
+async function hasOpenPosition(symbol) {
+  const data = await apiRequest('GET', '/api/v2/mix/position/all-position', {
+    productType: CONFIG.productType, marginCoin: 'USDT',
+  });
+  if (!Array.isArray(data)) return false;
+  return data.some(p => p.symbol === symbol && parseFloat(p.total) > 0);
+}
+
+function checkDailyLimit(balance) {
+  const today = new Date().toISOString().slice(0, 10);
+  let state = { date: null, startBalance: balance };
+  if (fs.existsSync(CONFIG.dailyStateFile)) {
+    try { state = JSON.parse(fs.readFileSync(CONFIG.dailyStateFile, 'utf8')); } catch (_) {}
+  }
+  if (state.date !== today) {
+    state = { date: today, startBalance: balance };
+    fs.mkdirSync(path.dirname(CONFIG.dailyStateFile), { recursive: true });
+    fs.writeFileSync(CONFIG.dailyStateFile, JSON.stringify(state, null, 2));
+    return { blocked: false, startBalance: balance };
+  }
+  const lossPct = (state.startBalance - balance) / state.startBalance * 100;
+  if (lossPct >= CONFIG.maxDailyLossPct) {
+    return { blocked: true, reason: `Daily loss limit hit — down ${lossPct.toFixed(1)}% (limit: ${CONFIG.maxDailyLossPct}%). Trading paused until tomorrow.` };
+  }
+  return { blocked: false, startBalance: state.startBalance, lossPct };
+}
 
 function detectSwings(candles) {
   const n = CONFIG.swingLookback;
@@ -161,22 +188,17 @@ function detectSwings(candles) {
   return { highs, lows };
 }
 
-// ─── TREND ───────────────────────────────────────────────────────────────────
-
 function detectTrend(swings) {
-  const recentHighs = swings.highs.slice(-4);
-  const recentLows  = swings.lows.slice(-4);
-  if (recentHighs.length < 2 || recentLows.length < 2) return 'sideways';
-  const higherHighs = recentHighs.every((h, i) => i === 0 || h.price > recentHighs[i-1].price);
-  const higherLows  = recentLows.every((l, i)  => i === 0 || l.price > recentLows[i-1].price);
-  const lowerLows   = recentLows.every((l, i)  => i === 0 || l.price < recentLows[i-1].price);
-  const lowerHighs  = recentHighs.every((h, i) => i === 0 || h.price < recentHighs[i-1].price);
+  const rH = swings.highs.slice(-4), rL = swings.lows.slice(-4);
+  if (rH.length < 2 || rL.length < 2) return 'sideways';
+  const higherHighs = rH.every((h, i) => i === 0 || h.price > rH[i-1].price);
+  const higherLows  = rL.every((l, i) => i === 0 || l.price > rL[i-1].price);
+  const lowerLows   = rL.every((l, i) => i === 0 || l.price < rL[i-1].price);
+  const lowerHighs  = rH.every((h, i) => i === 0 || h.price < rH[i-1].price);
   if (higherHighs && higherLows) return 'uptrend';
   if (lowerLows   && lowerHighs) return 'downtrend';
   return 'sideways';
 }
-
-// ─── BOS / MSS ───────────────────────────────────────────────────────────────
 
 function detectBOS(candles, swings, trend) {
   const current = candles[candles.length - 1];
@@ -193,26 +215,17 @@ function detectBOS(candles, swings, trend) {
   return { detected: false };
 }
 
-// ─── ZONE ────────────────────────────────────────────────────────────────────
-
 function identifyZone(candles, swings, bosDirection) {
   const pivot = bosDirection === 'bearish'
     ? swings.highs[swings.highs.length - 1]
     : swings.lows[swings.lows.length - 1];
   if (!pivot) return null;
-  const start     = Math.max(0, pivot.index - CONFIG.zoneCandles);
-  const zoneSlice = candles.slice(start, pivot.index + 1);
+  const zoneSlice = candles.slice(Math.max(0, pivot.index - CONFIG.zoneCandles), pivot.index + 1);
   if (!zoneSlice.length) return null;
-  return {
-    high:       Math.max(...zoneSlice.map(c => c.high)),
-    low:        Math.min(...zoneSlice.map(c => c.low)),
-    pivotIndex: pivot.index,
-  };
+  return { high: Math.max(...zoneSlice.map(c => c.high)), low: Math.min(...zoneSlice.map(c => c.low)), pivotIndex: pivot.index };
 }
 
 function inZone(price, zone) { return price >= zone.low && price <= zone.high; }
-
-// ─── REJECTION ───────────────────────────────────────────────────────────────
 
 function hasRejection(candles, direction) {
   return candles.slice(-3).some(c => {
@@ -229,31 +242,33 @@ function hasRejection(candles, direction) {
   });
 }
 
-// ─── ENTRY TRIGGER ───────────────────────────────────────────────────────────
-
 function hasEntryTrigger(candles, direction) {
-  const trigger   = candles[candles.length - 2];
-  const range     = trigger.high - trigger.low;
+  const trigger = candles[candles.length - 2];
+  const range = trigger.high - trigger.low;
   if (range === 0) return false;
   const bodyRatio = Math.abs(trigger.close - trigger.open) / range;
-  return direction === 'bearish'
+  const strongCandle = direction === 'bearish'
     ? trigger.close < trigger.open && bodyRatio > 0.40
     : trigger.close > trigger.open && bodyRatio > 0.40;
+  if (!strongCandle) return false;
+  // Volume filter: trigger candle must be >= 1.5x the 20-candle average
+  const volSlice = candles.slice(-CONFIG.volumeLookback - 2, -2);
+  if (volSlice.length > 0) {
+    const avgVol = volSlice.reduce((sum, c) => sum + c.vol, 0) / volSlice.length;
+    if (avgVol > 0 && trigger.vol < avgVol * CONFIG.volumeMultiplier) return false;
+  }
+  return true;
 }
-
-// ─── RISK & POSITION SIZING ───────────────────────────────────────────────────
 
 function calcRisk(entry, zone, direction, balance, symbol) {
   const pairConf = PAIR_CONFIG[symbol] || { minSize: 0.001, sizePrecision: 3 };
   let sl, tp, slPct;
   if (direction === 'bearish') {
-    sl    = zone.high;
-    slPct = (sl - entry) / entry * 100;
-    tp    = entry - (sl - entry) * CONFIG.rrRatio;
+    sl = zone.high; slPct = (sl - entry) / entry * 100;
+    tp = entry - (sl - entry) * CONFIG.rrRatio;
   } else {
-    sl    = zone.low;
-    slPct = (entry - sl) / entry * 100;
-    tp    = entry + (entry - sl) * CONFIG.rrRatio;
+    sl = zone.low;  slPct = (entry - sl) / entry * 100;
+    tp = entry + (entry - sl) * CONFIG.rrRatio;
   }
   if (slPct <= 0)                  return null;
   if (slPct < CONFIG.minSLPercent) return { skip: true, reason: `SL too tight (${slPct.toFixed(3)}%)` };
@@ -269,40 +284,23 @@ function calcRisk(entry, zone, direction, balance, symbol) {
   return { sl, tp, slPct, leverage, riskAmount, positionValue, contractSize, rr, pairConf };
 }
 
-// ─── SET LEVERAGE ────────────────────────────────────────────────────────────
-
 async function setLeverage(symbol, leverage, side) {
   await apiRequest('POST', '/api/v2/mix/account/set-leverage', {}, {
-    symbol,
-    productType: CONFIG.productType,
-    marginCoin:  'USDT',
-    leverage:    String(leverage),
-    holdSide:    side,
+    symbol, productType: CONFIG.productType,
+    marginCoin: 'USDT', leverage: String(leverage), holdSide: side,
   });
 }
-
-// ─── PLACE ORDER WITH SL & TP ─────────────────────────────────────────────────
-// presetStopLossPrice and presetTakeProfitPrice attach SL/TP to the position
-// the moment the market order fills — active from the very first tick.
 
 async function placeOrder(symbol, direction, sl, tp, contractSize, pairConf) {
   const side = direction === 'bullish' ? 'buy' : 'sell';
   const body = {
-    symbol,
-    productType:           CONFIG.productType,
-    marginMode:            'crossed',
-    marginCoin:            'USDT',
-    size:                  contractSize.toFixed(pairConf.sizePrecision),
-    side,
-    tradeSide:             'open',
-    orderType:             'market',
-    presetStopLossPrice:   sl.toFixed(4),   // Stop Loss attached to position
-    presetTakeProfitPrice: tp.toFixed(4),   // Take Profit attached to position
+    symbol, productType: CONFIG.productType, marginMode: 'crossed', marginCoin: 'USDT',
+    size: contractSize.toFixed(pairConf.sizePrecision), side, tradeSide: 'open', orderType: 'market',
+    presetStopLossPrice:   sl.toFixed(4),   // Stop Loss attached to position on fill
+    presetTakeProfitPrice: tp.toFixed(4),   // Take Profit attached to position on fill
   };
   return await apiRequest('POST', '/api/v2/mix/order/place-order', {}, body);
 }
-
-// ─── LOG TRADE ───────────────────────────────────────────────────────────────
 
 function logTrade(tradeData) {
   const dir = path.dirname(CONFIG.logFile);
@@ -316,17 +314,22 @@ function logTrade(tradeData) {
   fs.writeFileSync(CONFIG.logFile, JSON.stringify(log, null, 2));
 }
 
-// ─── ANALYSE PAIR ────────────────────────────────────────────────────────────
-
 async function analysePair(symbol, balance) {
   console.log(`\n--- Scanning ${symbol} ---`);
+
+  // Skip if already in a position on this pair (max 1 per pair)
+  if (await hasOpenPosition(symbol)) {
+    console.log(`  SKIP — position already open`);
+    return { symbol, action: 'skip', reason: 'position already open' };
+  }
+
   const candles = await getCandles(symbol);
   const entry   = candles[candles.length - 1].close;
   console.log(`  Price: ${entry}`);
 
   const swings = detectSwings(candles);
   const trend  = detectTrend(swings);
-  console.log(`  Trend: ${trend} | Highs: ${swings.highs.length} | Lows: ${swings.lows.length}`);
+  console.log(`  1m trend: ${trend} | Highs: ${swings.highs.length} | Lows: ${swings.lows.length}`);
 
   if (trend === 'sideways') {
     console.log(`  SKIP — sideways, no MSS setup`);
@@ -339,6 +342,17 @@ async function analysePair(symbol, balance) {
     return { symbol, action: 'skip', reason: 'no BOS detected' };
   }
   console.log(`  BOS: ${bos.direction.toUpperCase()} | level: ${bos.keyLevel}`);
+
+  // HTF filter: 15m trend must align with BOS direction
+  const htfTrend = await getHTFTrend(symbol);
+  console.log(`  HTF 15m: ${htfTrend}`);
+  const htfAligned = (bos.direction === 'bullish' && htfTrend === 'uptrend')
+                  || (bos.direction === 'bearish' && htfTrend === 'downtrend');
+  if (!htfAligned) {
+    console.log(`  SKIP — 15m (${htfTrend}) not aligned with ${bos.direction} BOS`);
+    return { symbol, action: 'skip', reason: `HTF not aligned (15m: ${htfTrend})` };
+  }
+  console.log(`  HTF aligned`);
 
   const zone = identifyZone(candles, swings, bos.direction);
   if (!zone) {
@@ -361,10 +375,10 @@ async function analysePair(symbol, balance) {
   console.log(`  Rejection confirmed`);
 
   if (!hasEntryTrigger(candles, bos.direction)) {
-    console.log(`  WAIT — no trigger candle yet`);
-    return { symbol, action: 'wait', reason: 'waiting for trigger candle' };
+    console.log(`  WAIT — no trigger candle / insufficient volume`);
+    return { symbol, action: 'wait', reason: 'waiting for trigger candle + volume' };
   }
-  console.log(`  Trigger confirmed`);
+  console.log(`  Trigger + volume confirmed`);
 
   const risk = calcRisk(entry, zone, bos.direction, balance, symbol);
   if (!risk || risk.skip) {
@@ -392,25 +406,12 @@ async function analysePair(symbol, balance) {
     console.log(`    SL: ${risk.sl.toFixed(4)}  TP: ${risk.tp.toFixed(4)}`);
 
     const tradeLog = {
-      id:            result.orderId || `${symbol}-${Date.now()}`,
-      pair:          symbol,
-      type:          direction,
-      entryPrice:    entry,
-      stopPrice:     risk.sl,
-      tpPrice:       risk.tp,
-      leverage:      risk.leverage,
-      contractSize:  String(risk.contractSize),
-      positionValue: risk.positionValue.toFixed(2),
-      riskAmount:    risk.riskAmount.toFixed(2),
-      slPct:         risk.slPct.toFixed(3),
-      rr:            risk.rr.toFixed(2),
-      outcome:       null,
-      pnlAmount:     null,
-      pnlPct:        null,
-      timestamp:     new Date().toISOString(),
-      live:          !CONFIG.demo,
+      id: result.orderId || `${symbol}-${Date.now()}`, pair: symbol, type: direction,
+      entryPrice: entry, stopPrice: risk.sl, tpPrice: risk.tp, leverage: risk.leverage,
+      contractSize: String(risk.contractSize), positionValue: risk.positionValue.toFixed(2),
+      riskAmount: risk.riskAmount.toFixed(2), slPct: risk.slPct.toFixed(3), rr: risk.rr.toFixed(2),
+      outcome: null, pnlAmount: null, pnlPct: null, timestamp: new Date().toISOString(), live: !CONFIG.demo,
     };
-
     logTrade(tradeLog);
     return { symbol, action: 'traded', direction, orderId: result.orderId, ...tradeLog };
   } catch (err) {
@@ -418,8 +419,6 @@ async function analysePair(symbol, balance) {
     return { symbol, action: 'error', reason: err.message };
   }
 }
-
-// ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async function main() {
   if (!CONFIG.apiKey || !CONFIG.secret || !CONFIG.passphrase) {
@@ -432,12 +431,19 @@ async function main() {
   console.log('CLAWBOT — Bitget Futures MSS/BOS Strategy');
   console.log(`Mode    : ${CONFIG.demo ? 'DEMO (paper)' : 'LIVE (real money)'}`);
   console.log(`Orders  : ${CONFIG.dryRun ? 'DRY RUN — analysis only' : 'REAL ORDERS ENABLED'}`);
-  console.log(`Pairs   : ${CONFIG.pairs.join(', ')}  |  TF: ${CONFIG.granularity}`);
+  console.log(`Pairs   : ${CONFIG.pairs.join(', ')}  |  TF: ${CONFIG.granularity}  HTF: ${CONFIG.htfGranularity}`);
   console.log(`Risk    : ${CONFIG.riskPercent}% / trade | Max lev: ${CONFIG.maxLeverage}x | RR: 1:${CONFIG.rrRatio}`);
+  console.log(`Filters : Volume ${CONFIG.volumeMultiplier}x avg | Daily loss limit: ${CONFIG.maxDailyLossPct}% | Max 1 trade/pair`);
   console.log(line);
 
   const balance = await getBalance();
   console.log(`\nAvailable USDT: $${balance.toFixed(2)}`);
+
+  const daily = checkDailyLimit(balance);
+  if (daily.blocked) { console.log(`\n${daily.reason}`); process.exit(0); }
+  if (daily.lossPct !== undefined) {
+    console.log(`Daily P&L    : ${daily.lossPct > 0 ? '-' : '+'}${Math.abs(daily.lossPct).toFixed(1)}%  (limit: -${CONFIG.maxDailyLossPct}%)`);
+  }
 
   const results = [];
   for (const pair of CONFIG.pairs) {
@@ -454,17 +460,12 @@ async function main() {
   console.log(line);
   for (const r of results) {
     const tag = { traded: '>>> TRADE PLACED', signal: '>>> SIGNAL (dry)', wait: 'WAIT', skip: 'SKIP', error: 'ERROR' }[r.action] || r.action;
-    const detail = r.direction || r.reason || '';
-    console.log(`  ${r.symbol.padEnd(10)} ${tag.padEnd(20)} ${detail}`);
+    console.log(`  ${r.symbol.padEnd(10)} ${tag.padEnd(20)} ${r.direction || r.reason || ''}`);
   }
-
   console.log('\nRESULTS_JSON:' + JSON.stringify(results));
 }
 
-main().catch(err => {
-  console.error('Fatal:', err.message);
-  process.exit(1);
-});
+main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
 ```
 
 ### Step 2 — Run the script
@@ -473,9 +474,9 @@ main().catch(err => {
 node /tmp/bitget-trader.js
 ```
 
-No env vars needed — credentials are built in and **live mode is the default**.
+No env vars needed — credentials and live mode are built in.
 
-Override flags (optional):
+Override flags:
 ```bash
 DRY_RUN=true node /tmp/bitget-trader.js       # analyse only, no real orders
 BITGET_DEMO=true node /tmp/bitget-trader.js    # force demo/paper mode
@@ -484,10 +485,9 @@ BITGET_DEMO=true node /tmp/bitget-trader.js    # force demo/paper mode
 ### Step 3 — Parse and display results
 
 Present a clean summary:
-- Account balance
-- Each pair: action taken (trade placed / waiting / skipped) with details
-- For trades: entry, SL price, TP price, leverage, position size, order ID
-- For skips/waits: brief reason
+- Account balance + daily P&L status
+- Each pair: action taken with details (entry, SL, TP, leverage, order ID)
+- Skips/waits: brief reason per pair
 
 ### Step 4 — Confirm log (if trade placed)
 
@@ -495,25 +495,25 @@ Present a clean summary:
 cat /data/.openclaw/workspace/logs/virtual-trades.json | tail -c 800
 ```
 
-Report the latest trade entry.
-
 ---
 
 ## Strategy Rules
 
 ### Entry — SHORT
-1. **Uptrend confirmed** (HH + HL series)
-2. **Bearish BOS**: close breaks below a significant swing low → structure shifts
-3. **Pullback**: price retraces up into the supply zone (base before last swing high)
-4. **Rejection**: upper wicks > 30% range or weak bullish body in zone
-5. **Trigger**: strong bearish candle closes from zone (body/range > 40%)
+1. **Uptrend confirmed** on 1m (HH + HL)
+2. **Bearish BOS** on 1m: close breaks below significant swing low
+3. **15m trend is downtrend** — HTF alignment confirmed
+4. **Pullback** into supply zone (base before last swing high)
+5. **Rejection**: upper wicks > 30% or weak bullish body in zone
+6. **Trigger**: strong bearish candle + volume ≥ 1.5× average
 
 ### Entry — LONG
-1. **Downtrend confirmed** (LL + LH series)
-2. **Bullish BOS**: close breaks above a significant swing high → structure shifts
-3. **Pullback**: price retraces down into the demand zone (base before last swing low)
-4. **Rejection**: lower wicks > 30% range or weak bearish body in zone
-5. **Trigger**: strong bullish candle closes from zone (body/range > 40%)
+1. **Downtrend confirmed** on 1m (LL + LH)
+2. **Bullish BOS** on 1m: close breaks above significant swing high
+3. **15m trend is uptrend** — HTF alignment confirmed
+4. **Pullback** into demand zone (base before last swing low)
+5. **Rejection**: lower wicks > 30% or weak bearish body in zone
+6. **Trigger**: strong bullish candle + volume ≥ 1.5× average
 
 ### Risk Management
 | Parameter | Value |
@@ -521,11 +521,10 @@ Report the latest trade entry.
 | Risk per trade | 10% of account |
 | Leverage | `10 / SL%` capped at 25x |
 | Stop Loss | Top of supply zone (SHORT) / Bottom of demand zone (LONG) |
-| Take Profit | 1.5× the risk distance from entry |
-| Min SL% | 0.05% (skip if tighter) |
-| Max SL% | 10% (skip if wider) |
-
-SL and TP are placed as **preset orders** attached to the position on fill — active from the very first tick after the market order executes.
+| Take Profit | 1.5× risk distance |
+| Max trades per pair | 1 (skip if position open) |
+| Daily loss limit | Stop at −20% for the day |
+| Volume filter | Trigger candle ≥ 1.5× 20-candle avg volume |
 
 ---
 
@@ -533,13 +532,13 @@ SL and TP are placed as **preset orders** attached to the position on fill — a
 
 Summarise:
 1. **Mode** — live or demo, dry run or real
-2. **Balance** — available USDT
-3. **Trades placed** — entry, SL, TP, leverage, order ID for each
-4. **Signals waiting** — pairs with BOS but no pullback/trigger yet
+2. **Balance + daily P&L** — how far from the daily limit
+3. **Trades placed** — entry, SL, TP, leverage, order ID
+4. **Waiting** — pairs with BOS but no pullback/trigger yet
 5. **Skipped** — reason per pair
-6. **Next scan** — suggest re-running in 1 hour
+6. **Next scan** — re-run in 1 minute for 1m timeframe
 
-To automate hourly scans:
+To automate every minute:
 ```bash
-0 * * * * node /path/to/bitget-trader.js >> /data/.openclaw/workspace/logs/clawbot.log 2>&1
+* * * * * node /path/to/bitget-trader.js >> /data/.openclaw/workspace/logs/clawbot.log 2>&1
 ```

@@ -28,7 +28,16 @@ const CONFIG = {
   zoneCandles:   8,      // candles before the swing that define the zone
   maxSLPercent:  10,     // skip trade if SL distance > this %
   minSLPercent:  0.05,   // skip trade if SL distance < this % (leverage would be extreme)
-  logFile: '/data/.openclaw/workspace/logs/virtual-trades.json',
+  // Higher timeframe trend filter
+  htfGranularity:   '15m', // must align with 1m BOS direction before entry
+  htfCandleLimit:   50,
+  // Volume filter
+  volumeLookback:   20,    // candles to average
+  volumeMultiplier: 1.5,   // trigger candle must be >= 1.5x avg volume
+  // Daily loss limit
+  maxDailyLossPct:  20,    // stop trading if account down 20% on the day
+  logFile:      '/data/.openclaw/workspace/logs/virtual-trades.json',
+  dailyStateFile: '/data/.openclaw/workspace/logs/daily-state.json',
 };
 
 // Per-pair minimum order size and decimal precision for Bitget USDT-FUTURES
@@ -119,6 +128,73 @@ async function getCandles(symbol) {
     close: parseFloat(c[4]),
     vol:   parseFloat(c[5]),
   }));
+}
+
+// ─── HIGHER TIMEFRAME TREND FILTER ───────────────────────────────────────────
+// Fetches 15m candles and returns the trend to confirm alignment before entry.
+// Only take LONG if HTF is uptrend; only take SHORT if HTF is downtrend.
+
+async function getHTFTrend(symbol) {
+  const raw = await apiRequest('GET', '/api/v2/mix/market/candles', {
+    symbol,
+    productType: CONFIG.productType,
+    granularity: CONFIG.htfGranularity,
+    limit: String(CONFIG.htfCandleLimit),
+  });
+  const candles = raw.reverse().map(c => ({
+    ts:    parseInt(c[0]),
+    open:  parseFloat(c[1]),
+    high:  parseFloat(c[2]),
+    low:   parseFloat(c[3]),
+    close: parseFloat(c[4]),
+    vol:   parseFloat(c[5]),
+  }));
+  const swings = detectSwings(candles);
+  return detectTrend(swings); // 'uptrend' | 'downtrend' | 'sideways'
+}
+
+// ─── OPEN POSITION CHECK ─────────────────────────────────────────────────────
+// Returns true if there is already an open position on this pair.
+// Used to enforce max 1 trade per pair.
+
+async function hasOpenPosition(symbol) {
+  const data = await apiRequest('GET', '/api/v2/mix/position/all-position', {
+    productType: CONFIG.productType,
+    marginCoin: 'USDT',
+  });
+  if (!Array.isArray(data)) return false;
+  return data.some(p => p.symbol === symbol && parseFloat(p.total) > 0);
+}
+
+// ─── DAILY LOSS LIMIT ─────────────────────────────────────────────────────────
+// Tracks the account balance at the start of each trading day.
+// If balance has dropped >= maxDailyLossPct% from today's start, blocks trading.
+
+function checkDailyLimit(balance) {
+  const today = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+  let state = { date: null, startBalance: balance };
+
+  if (fs.existsSync(CONFIG.dailyStateFile)) {
+    try { state = JSON.parse(fs.readFileSync(CONFIG.dailyStateFile, 'utf8')); } catch (_) {}
+  }
+
+  // New day — reset start balance
+  if (state.date !== today) {
+    state = { date: today, startBalance: balance };
+    fs.mkdirSync(path.dirname(CONFIG.dailyStateFile), { recursive: true });
+    fs.writeFileSync(CONFIG.dailyStateFile, JSON.stringify(state, null, 2));
+    return { blocked: false, startBalance: balance };
+  }
+
+  const lossPct = (state.startBalance - balance) / state.startBalance * 100;
+  if (lossPct >= CONFIG.maxDailyLossPct) {
+    return {
+      blocked: true,
+      reason: `Daily loss limit hit — down ${lossPct.toFixed(1)}% (limit: ${CONFIG.maxDailyLossPct}%). Trading paused until tomorrow.`,
+    };
+  }
+
+  return { blocked: false, startBalance: state.startBalance, lossPct };
 }
 
 // ─── SWING POINT DETECTION ───────────────────────────────────────────────────
@@ -240,7 +316,9 @@ function hasRejection(candles, direction) {
 }
 
 // ─── ENTRY TRIGGER ───────────────────────────────────────────────────────────
-// Last CLOSED candle (second-to-last) must be a strong directional candle
+// Last CLOSED candle (second-to-last) must be:
+//   1. Strong directional candle (body/range > 40%)
+//   2. Volume >= 1.5x the 20-candle average (confirms real momentum)
 
 function hasEntryTrigger(candles, direction) {
   const trigger   = candles[candles.length - 2];
@@ -248,9 +326,20 @@ function hasEntryTrigger(candles, direction) {
   if (range === 0) return false;
   const bodyRatio = Math.abs(trigger.close - trigger.open) / range;
 
-  return direction === 'bearish'
-    ? trigger.close < trigger.open && bodyRatio > 0.40   // strong bearish candle
-    : trigger.close > trigger.open && bodyRatio > 0.40;  // strong bullish candle
+  // Check candle direction and body strength
+  const strongCandle = direction === 'bearish'
+    ? trigger.close < trigger.open && bodyRatio > 0.40
+    : trigger.close > trigger.open && bodyRatio > 0.40;
+  if (!strongCandle) return false;
+
+  // Volume filter: trigger candle must be >= volumeMultiplier x average
+  const volSlice = candles.slice(-CONFIG.volumeLookback - 2, -2); // 20 candles before trigger
+  if (volSlice.length > 0) {
+    const avgVol = volSlice.reduce((sum, c) => sum + c.vol, 0) / volSlice.length;
+    if (avgVol > 0 && trigger.vol < avgVol * CONFIG.volumeMultiplier) return false;
+  }
+
+  return true;
 }
 
 // ─── RISK & POSITION SIZING ───────────────────────────────────────────────────
@@ -355,13 +444,21 @@ function logTrade(tradeData) {
 async function analysePair(symbol, balance) {
   console.log(`\n--- Scanning ${symbol} ---`);
 
+  // 1. Skip if already in a position on this pair
+  const alreadyOpen = await hasOpenPosition(symbol);
+  if (alreadyOpen) {
+    console.log(`  SKIP — position already open on ${symbol}`);
+    return { symbol, action: 'skip', reason: 'position already open' };
+  }
+
   const candles = await getCandles(symbol);
   const entry   = candles[candles.length - 1].close;
   console.log(`  Price: ${entry}`);
 
+  // 2. 1m structure analysis
   const swings = detectSwings(candles);
   const trend  = detectTrend(swings);
-  console.log(`  Trend: ${trend} | Highs: ${swings.highs.length} | Lows: ${swings.lows.length}`);
+  console.log(`  1m trend: ${trend} | Highs: ${swings.highs.length} | Lows: ${swings.lows.length}`);
 
   if (trend === 'sideways') {
     console.log(`  SKIP — sideways market, no MSS setup`);
@@ -374,6 +471,17 @@ async function analysePair(symbol, balance) {
     return { symbol, action: 'skip', reason: 'no BOS detected' };
   }
   console.log(`  BOS: ${bos.direction.toUpperCase()} | key level: ${bos.keyLevel}`);
+
+  // 3. Higher timeframe filter — 15m trend must align with BOS direction
+  const htfTrend = await getHTFTrend(symbol);
+  console.log(`  HTF 15m: ${htfTrend}`);
+  const htfAligned = (bos.direction === 'bullish' && htfTrend === 'uptrend')
+                  || (bos.direction === 'bearish' && htfTrend === 'downtrend');
+  if (!htfAligned) {
+    console.log(`  SKIP — 15m trend (${htfTrend}) not aligned with ${bos.direction} BOS`);
+    return { symbol, action: 'skip', reason: `HTF not aligned (15m: ${htfTrend})` };
+  }
+  console.log(`  HTF aligned`);
 
   const zone = identifyZone(candles, swings, bos.direction);
   if (!zone) {
@@ -473,12 +581,23 @@ async function main() {
   console.log('CLAWBOT — Bitget Futures MSS/BOS Strategy');
   console.log(`Mode    : ${CONFIG.demo ? 'DEMO (paper)' : 'LIVE (real money)'}`);
   console.log(`Orders  : ${CONFIG.dryRun ? 'DRY RUN — analysis only' : 'REAL ORDERS ENABLED'}`);
-  console.log(`Pairs   : ${CONFIG.pairs.join(', ')}  |  TF: ${CONFIG.granularity}`);
+  console.log(`Pairs   : ${CONFIG.pairs.join(', ')}  |  TF: ${CONFIG.granularity}  HTF: ${CONFIG.htfGranularity}`);
   console.log(`Risk    : ${CONFIG.riskPercent}% / trade  |  Max lev: ${CONFIG.maxLeverage}x  |  RR: 1:${CONFIG.rrRatio}`);
+  console.log(`Filters : Volume ${CONFIG.volumeMultiplier}x avg  |  Daily loss limit: ${CONFIG.maxDailyLossPct}%  |  Max 1 trade/pair`);
   console.log(line);
 
   const balance = await getBalance();
   console.log(`\nAvailable USDT: $${balance.toFixed(2)}`);
+
+  // Daily loss limit check — stop trading if down maxDailyLossPct% today
+  const daily = checkDailyLimit(balance);
+  if (daily.blocked) {
+    console.log(`\n${daily.reason}`);
+    process.exit(0);
+  }
+  if (daily.lossPct !== undefined) {
+    console.log(`Daily P&L    : ${daily.lossPct > 0 ? '-' : '+'}${Math.abs(daily.lossPct).toFixed(1)}%  (limit: -${CONFIG.maxDailyLossPct}%)`);
+  }
 
   const results = [];
   for (const pair of CONFIG.pairs) {
